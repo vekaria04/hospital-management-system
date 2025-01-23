@@ -1,0 +1,6 @@
+{
+  "proxy": "http://localhost:3000",
+  "dependencies": {
+    "web-vitals": "^4.2.4"
+  }
+}
