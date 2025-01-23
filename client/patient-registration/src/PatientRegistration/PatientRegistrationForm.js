@@ -46,6 +46,15 @@ const PatientRegistrationForm = () => {
             });
             if (response.ok) {
                 alert("Patient registered successfully!");
+                setFormData({
+                    firstName: "",
+                    lastName: "",
+                    gender: "",
+                    age: "",
+                    phoneNumber: "",
+                    email: "",
+                    address: "",
+                });
             } else {
                 const errorData = await response.json();
                 alert(`Failed to register patient: ${errorData.error || "Unknown error"}`);
