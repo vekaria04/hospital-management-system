@@ -12,6 +12,32 @@ const PatientRegistrationForm = () => {
     });
 
     const [errors, setErrors] = useState({});
+    const [email, setEmail] = useState(""); // Email input for fetching existing data
+    const [existingPatientId, setExistingPatientId] = useState(null); // Track if patient exists for updates
+
+    const handleFetchData = async () => {
+        try {
+            const response = await fetch(`/api/returning-patient/${email}`);
+            if (response.ok) {
+                const data = await response.json();
+                setFormData({
+                    firstName: data.first_name,
+                    lastName: data.last_name,
+                    gender: data.gender,
+                    age: data.age,
+                    phoneNumber: data.phone_number,
+                    email: data.email,
+                    address: data.address,
+                });
+                setExistingPatientId(data.id); // Store existing patient ID for updating
+            } else {
+                alert("Patient not found. You can register a new patient.");
+                setExistingPatientId(null); // No existing patient found
+            }
+        } catch (error) {
+            console.error("Error fetching data:", error);
+        }
+    };
 
     const validate = () => {
         const newErrors = {};
@@ -30,6 +56,7 @@ const PatientRegistrationForm = () => {
         setFormData({ ...formData, [e.target.name]: e.target.value });
     };
 
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         const newErrors = validate();
@@ -39,25 +66,43 @@ const PatientRegistrationForm = () => {
         }
         setErrors({});
         try {
-            const response = await fetch("/api/register-patient", {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify(formData),
-            });
-            if (response.ok) {
-                alert("Patient registered successfully!");
-                setFormData({
-                    firstName: "",
-                    lastName: "",
-                    gender: "",
-                    age: "",
-                    phoneNumber: "",
-                    email: "",
-                    address: "",
+            if (existingPatientId) {
+                // If patient exists, update record
+                const response = await fetch(`/api/update-patient/${existingPatientId}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData),
                 });
+
+                if (response.ok) {
+                    alert("Patient details updated successfully!");
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to update patient: ${errorData.error || "Unknown error"}`);
+                }
             } else {
-                const errorData = await response.json();
-                alert(`Failed to register patient: ${errorData.error || "Unknown error"}`);
+                // Otherwise, register a new patient
+                const response = await fetch("/api/register-patient", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(formData),
+                });
+
+                if (response.ok) {
+                    alert("Patient registered successfully!");
+                    setFormData({
+                        firstName: "",
+                        lastName: "",
+                        gender: "",
+                        age: "",
+                        phoneNumber: "",
+                        email: "",
+                        address: "",
+                    });
+                } else {
+                    const errorData = await response.json();
+                    alert(`Failed to register patient: ${errorData.error || "Unknown error"}`);
+                }
             }
         } catch (error) {
             console.error("Error submitting form:", error);
@@ -68,6 +113,28 @@ const PatientRegistrationForm = () => {
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
             <div className="max-w-lg w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-8 rounded-lg shadow-lg text-white">
                 <h1 className="text-3xl font-bold text-center mb-6">Patient Registration</h1>
+                
+                {/* Returning Patient Lookup */}
+                <div className="mb-4">
+                    <label className="block text-sm font-medium">Retrieve Existing Patient Data</label>
+                    <div className="flex">
+                        <input
+                            type="text"
+                            placeholder="Enter email"
+                            value={email}
+                            onChange={(e) => setEmail(e.target.value)}
+                            className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                        />
+                        <button
+                            type="button"
+                            onClick={handleFetchData}
+                            className="ml-2 px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
+                        >
+                            Retrieve
+                        </button>
+                    </div>
+                </div>
+
                 <form onSubmit={handleSubmit} className="space-y-4">
                     {["firstName", "lastName", "gender", "age", "phoneNumber", "email", "address"].map(
                         (field) => (
@@ -113,9 +180,11 @@ const PatientRegistrationForm = () => {
                     )}
                     <button
                         type="submit"
-                        className="w-full py-3 px-6 rounded-md bg-orange-500 text-white font-semibold shadow-md hover:bg-orange-600 focus:ring-2 focus:ring-orange-400"
+                        className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md focus:ring-2 focus:ring-orange-400 ${
+                            existingPatientId ? "bg-blue-500 hover:bg-blue-600" : "bg-orange-500 hover:bg-orange-600"
+                        }`}
                     >
-                        Submit
+                        {existingPatientId ? "Update" : "Submit"}
                     </button>
                 </form>
             </div>
