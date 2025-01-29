@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
 
 const GroupRegistrationForm = () => {
     const [primaryEmail, setPrimaryEmail] = useState("");
@@ -13,7 +14,11 @@ const GroupRegistrationForm = () => {
         email: "",
         address: "",
     });
+    const navigate = useNavigate();
 
+    const navigateHome = () => {
+        navigate('/');
+    };
     // Function to retrieve primary patient data
     const fetchPrimaryPatient = async () => {
         if (!primaryEmail) {
@@ -84,29 +89,29 @@ const GroupRegistrationForm = () => {
             alert("Please retrieve the primary patient first.");
             return;
         }
-    
+
         if (familyMembers.length === 0) {
             alert("Please add at least one family member.");
             return;
         }
-    
+
         // Transform primaryPatient fields to match expected camelCase structure
         const transformedPrimaryMember = {
-            firstName: primaryPatient.first_name, 
-            lastName: primaryPatient.last_name, 
-            gender: primaryPatient.gender, 
-            age: primaryPatient.age, 
-            phoneNumber: primaryPatient.phone_number, 
-            email: primaryPatient.email, 
-            address: primaryPatient.address 
+            firstName: primaryPatient.first_name,
+            lastName: primaryPatient.last_name,
+            gender: primaryPatient.gender,
+            age: primaryPatient.age,
+            phoneNumber: primaryPatient.phone_number,
+            email: primaryPatient.email,
+            address: primaryPatient.address
         };
-    
+
         // Debugging: Log final payload
         console.log("Submitting Family Registration:", {
             primaryMember: transformedPrimaryMember,
             familyMembers
         });
-    
+
         try {
             const response = await fetch("/api/register-family", {
                 method: "POST",
@@ -116,7 +121,7 @@ const GroupRegistrationForm = () => {
                     familyMembers
                 }),
             });
-    
+
             if (response.ok) {
                 alert("Family group registered successfully!");
                 setPrimaryPatient(null); // Reset primary patient
@@ -130,12 +135,12 @@ const GroupRegistrationForm = () => {
             alert("An error occurred while registering the family.");
         }
     };
-    
-    
+
+
 
     return (
-        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-green-900 to-blue-900">
-            <div className="max-w-2xl w-full bg-gradient-to-br from-green-700 to-blue-700 p-8 rounded-lg shadow-lg text-white">
+        <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
+            <div className="max-w-2xl w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-8 rounded-lg shadow-lg text-white">
                 <h1 className="text-3xl font-bold text-center mb-6">Group Registration</h1>
 
                 {/* Primary Patient Section */}
@@ -147,7 +152,7 @@ const GroupRegistrationForm = () => {
                             placeholder="Enter email"
                             value={primaryEmail}
                             onChange={(e) => setPrimaryEmail(e.target.value)}
-                            className="mt-1 block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none"
+                            className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none"
                         />
                         <button
                             type="button"
@@ -170,7 +175,7 @@ const GroupRegistrationForm = () => {
                 <h2 className="text-xl font-bold mb-4">Add Family Members</h2>
                 <div className="space-y-4">
                     {familyMembers.map((member, index) => (
-                        <div key={index} className="bg-green-600 p-4 rounded-md">
+                        <div key={index} className="bg-purple-100 p-4 rounded-md">
                             <p className="font-semibold">Member {index + 1}:</p>
                             <p>Name: {member.firstName} {member.lastName}</p>
                             <p>Email: {member.email}</p>
@@ -189,7 +194,7 @@ const GroupRegistrationForm = () => {
                         placeholder="First Name"
                         value={newMember.firstName}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                     />
 
                     {/* Last Name */}
@@ -199,7 +204,7 @@ const GroupRegistrationForm = () => {
                         placeholder="Last Name"
                         value={newMember.lastName}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                     />
 
                     {/* Gender */}
@@ -207,7 +212,7 @@ const GroupRegistrationForm = () => {
                         name="gender"
                         value={newMember.gender}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                     >
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
@@ -222,7 +227,7 @@ const GroupRegistrationForm = () => {
                         placeholder="Age"
                         value={newMember.age}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                     />
 
                     {/* Phone Number */}
@@ -232,7 +237,7 @@ const GroupRegistrationForm = () => {
                         placeholder="Phone Number"
                         value={newMember.phoneNumber}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                     />
 
                     {/* Email */}
@@ -242,7 +247,7 @@ const GroupRegistrationForm = () => {
                         placeholder="Email"
                         value={newMember.email}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                     />
 
                     {/* Address */}
@@ -251,7 +256,7 @@ const GroupRegistrationForm = () => {
                         placeholder="Address"
                         value={newMember.address}
                         onChange={handleNewMemberChange}
-                        className="block w-full px-4 py-2 bg-green-100 text-black border border-gray-300 rounded-md mt-2"
+                        className="block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md mt-2"
                         rows="2"
                     ></textarea>
 
@@ -272,6 +277,13 @@ const GroupRegistrationForm = () => {
                     className="w-full py-3 px-6 mt-6 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
                 >
                     Submit Group
+                </button>
+                {/* Navigate Home */}
+                <button
+                    onClick={navigateHome}
+                    className="w-full py-3 px-6 mt-6 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
+                >
+                    Home
                 </button>
             </div>
         </div>

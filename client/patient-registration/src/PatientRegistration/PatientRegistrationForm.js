@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { BrowserRouter as Router, Route, Routes, useNavigate } from 'react-router-dom';
 
 const PatientRegistrationForm = () => {
     const [formData, setFormData] = useState({
@@ -10,7 +11,10 @@ const PatientRegistrationForm = () => {
         email: "",
         address: "",
     });
-
+    const navigate = useNavigate();
+    const navigateHome = () => {
+        navigate('/');
+    };
     const [errors, setErrors] = useState({});
     const [email, setEmail] = useState(""); // Email input for fetching existing data
     const [existingPatientId, setExistingPatientId] = useState(null); // Track if patient exists for updates
@@ -113,7 +117,7 @@ const PatientRegistrationForm = () => {
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
             <div className="max-w-lg w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-8 rounded-lg shadow-lg text-white">
                 <h1 className="text-3xl font-bold text-center mb-6">Patient Registration</h1>
-                
+
                 {/* Returning Patient Lookup */}
                 <div className="mb-4">
                     <label className="block text-sm font-medium">Retrieve Existing Patient Data</label>
@@ -180,11 +184,17 @@ const PatientRegistrationForm = () => {
                     )}
                     <button
                         type="submit"
-                        className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md focus:ring-2 focus:ring-orange-400 ${
-                            existingPatientId ? "bg-blue-500 hover:bg-blue-600" : "bg-orange-500 hover:bg-orange-600"
-                        }`}
+                        className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md focus:ring-2 focus:ring-orange-400 ${existingPatientId ? "bg-blue-500 hover:bg-blue-600" : "bg-orange-500 hover:bg-orange-600"
+                            }`}
                     >
                         {existingPatientId ? "Update" : "Submit"}
+                    </button>
+                    {/* Navigate Home */}
+                    <button
+                        onClick={navigateHome}
+                        className="w-full py-3 px-6 mt-6 bg-blue-500 text-white font-semibold rounded-md hover:bg-blue-600"
+                    >
+                        Home
                     </button>
                 </form>
             </div>
