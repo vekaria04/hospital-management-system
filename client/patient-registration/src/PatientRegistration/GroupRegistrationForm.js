@@ -175,7 +175,7 @@ const GroupRegistrationForm = () => {
                 <h2 className="text-xl font-bold mb-4">Add Family Members</h2>
                 <div className="space-y-4">
                     {familyMembers.map((member, index) => (
-                        <div key={index} className="bg-purple-100 p-4 rounded-md">
+                        <div key={index} className="bg-green-600 p-4 rounded-md">
                             <p className="font-semibold">Member {index + 1}:</p>
                             <p>Name: {member.firstName} {member.lastName}</p>
                             <p>Email: {member.email}</p>
