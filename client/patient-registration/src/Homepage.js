@@ -26,6 +26,13 @@ const Homepage = () => {
                     >
                         Register Family Group
                     </button>
+
+                    <button
+                        onClick={() => navigate("/edit-family-group")}
+                        className="px-6 py-3 bg-yellow-500 hover:bg-yellow-600 text-white rounded-lg text-lg shadow-md"
+                    >
+                        Edit Family Groups
+                    </button>
                 </div>
             </div>
         </div>

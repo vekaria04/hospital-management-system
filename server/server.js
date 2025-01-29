@@ -235,7 +235,108 @@ app.post('/api/register-family', async (req, res) => {
     }
 });
 
+//Fetch family groups with email
+app.get('/api/family-group/:email', async (req, res) => {
+    const { email } = req.params;
 
+    try {
+        // Fetch the primary member
+        const primaryMemberResult = await pool.query(
+            `SELECT * FROM patients WHERE email = $1;`,
+            [email]
+        );
+
+        if (primaryMemberResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Primary member not found' });
+        }
+
+        const primaryMember = primaryMemberResult.rows[0];
+        const familyGroupId = primaryMember.family_group_id;
+
+        if (!familyGroupId) {
+            return res.status(404).json({ error: 'No family group associated with this member' });
+        }
+
+        // Fetch all members in the family group
+        const familyMembersResult = await pool.query(
+            `SELECT * FROM patients WHERE family_group_id = $1;`,
+            [familyGroupId]
+        );
+
+        res.json({
+            primaryMember,
+            familyMembers: familyMembersResult.rows,
+        });
+    } catch (error) {
+        console.error('Error fetching family group:', error);
+        res.status(500).json({ error: 'Failed to fetch family group' });
+    }
+});
+
+//Update family group information
+app.put('/api/family-group/update-member/:id', async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, gender, age, phoneNumber, email, address } = req.body;
+
+    console.log("🔹 Received update request:", req.body);
+
+    if (!firstName || !lastName) {
+        console.error("❌ Missing required fields:", req.body);
+        return res.status(400).json({ error: "First name and last name cannot be empty." });
+    }
+
+    try {
+        const updateQuery = `
+            UPDATE patients
+            SET first_name = $1, last_name = $2, gender = $3, age = $4, 
+                phone_number = $5, email = $6, address = $7
+            WHERE id = $8 RETURNING *;
+        `;
+        const values = [
+            firstName || "Unknown",
+            lastName || "Unknown",
+            gender || "Not Specified",
+            age || 0,  
+            phoneNumber || "N/A",
+            email,
+            address || "Not Provided",
+            id
+        ];
+
+        const result = await pool.query(updateQuery, values);
+
+        if (result.rowCount === 0) {
+            console.error("❌ No family member found for ID:", id);
+            return res.status(404).json({ error: "Family member not found" });
+        }
+
+        res.json({ message: "Family member updated successfully!", member: result.rows[0] });
+    } catch (error) {
+        console.error("❌ Error updating family member:", error);
+        res.status(500).json({ error: "Failed to update family member." });
+    }
+});
+
+
+
+//Remove a family member from group
+app.delete('/api/family-group/remove-member/:id', async (req, res) => {
+    const { id } = req.params;
+
+    try {
+        const deleteQuery = `DELETE FROM patients WHERE id = $1 RETURNING *;`;
+        const result = await pool.query(deleteQuery, [id]);
+
+        if (result.rowCount === 0) {
+            return res.status(404).json({ error: 'Family member not found' });
+        }
+
+        res.json({ message: 'Family member removed successfully', member: result.rows[0] });
+    } catch (error) {
+        console.error('Error removing family member:', error);
+        res.status(500).json({ error: 'Failed to remove family member' });
+    }
+});
 
 
 const port = 3000;
