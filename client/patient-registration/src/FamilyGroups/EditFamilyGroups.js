@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import axios from "axios";
 import { useNavigate } from "react-router-dom";
 
 const EditFamilyGroups = () => {
@@ -14,16 +13,24 @@ const EditFamilyGroups = () => {
     setIsLoading(true);
 
     try {
-      const response = await axios.get(`/api/family-group/${email}`);
+      const response = await fetch(`/api/family-group/${email}`, {
+        method: "GET",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to fetch family group. Please check the email.");
+      }
+
+      const data = await response.json();
 
       const mappedPrimaryMember = {
-        ...response.data.primaryMember,
-        firstName: response.data.primaryMember.first_name,
-        lastName: response.data.primaryMember.last_name,
-        phoneNumber: response.data.primaryMember.phone_number,
+        ...data.primaryMember,
+        firstName: data.primaryMember.first_name,
+        lastName: data.primaryMember.last_name,
+        phoneNumber: data.primaryMember.phone_number,
       };
 
-      const mappedFamilyMembers = response.data.familyMembers.map((member) => ({
+      const mappedFamilyMembers = data.familyMembers.map((member) => ({
         ...member,
         firstName: member.first_name,
         lastName: member.last_name,
@@ -35,7 +42,7 @@ const EditFamilyGroups = () => {
         familyMembers: mappedFamilyMembers,
       });
     } catch (err) {
-      setError("Failed to fetch family group. Please check the email.");
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -55,14 +62,22 @@ const EditFamilyGroups = () => {
     setIsLoading(true);
 
     try {
-      await axios.delete(`/api/family-group/remove-member/${id}`);
+      const response = await fetch(`/api/family-group/remove-member/${id}`, {
+        method: "DELETE",
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to remove family member.");
+      }
+
       setFamilyGroup((prev) => ({
         ...prev,
         familyMembers: prev.familyMembers.filter((member) => member.id !== id),
       }));
+
       alert("Family member removed successfully.");
     } catch (err) {
-      setError("Failed to remove family member.");
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
@@ -78,18 +93,27 @@ const EditFamilyGroups = () => {
     setError("");
 
     try {
-      await axios.put(`/api/family-group/update-member/${member.id}`, {
-        firstName: member.firstName,
-        lastName: member.lastName,
-        gender: member.gender,
-        age: member.age,
-        phoneNumber: member.phoneNumber,
-        email: member.email,
-        address: member.address,
+      const response = await fetch(`/api/family-group/update-member/${member.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          firstName: member.firstName,
+          lastName: member.lastName,
+          gender: member.gender,
+          age: member.age,
+          phoneNumber: member.phoneNumber,
+          email: member.email,
+          address: member.address,
+        }),
       });
+
+      if (!response.ok) {
+        throw new Error("Failed to update family member. Please try again.");
+      }
+
       alert("Member updated successfully!");
     } catch (err) {
-      setError("Failed to update family member. Please try again.");
+      setError(err.message);
     } finally {
       setIsLoading(false);
     }
