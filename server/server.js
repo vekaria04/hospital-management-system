@@ -119,6 +119,7 @@ app.put('/api/update-patient/:id', async (req, res) => {
     }
 });
 
+//Group Patient Registration
 app.post('/api/register-family', async (req, res) => {
     try {
         const { primaryMember, familyMembers } = req.body;
@@ -139,12 +140,12 @@ app.post('/api/register-family', async (req, res) => {
 
         // Check if Primary Member already exists
         const existingPrimary = await pool.query(
-            "SELECT id, family_group_id FROM patients WHERE email = $1;", 
+            "SELECT id, family_group_id FROM patients WHERE email = $1;",
             [primaryMember.email]
         );
 
         let familyGroupId;
-        
+
         if (existingPrimary.rows.length > 0) {
             // Primary member exists, update their family_group_id
             console.log("🔄 Updating existing primary patient family group...");
@@ -157,7 +158,7 @@ app.post('/api/register-family', async (req, res) => {
 
                 // Update the primary member's `family_group_id`
                 await pool.query(
-                    "UPDATE patients SET family_group_id = $1 WHERE email = $2;", 
+                    "UPDATE patients SET family_group_id = $1 WHERE email = $2;",
                     [familyGroupId, primaryMember.email]
                 );
             }
@@ -174,13 +175,13 @@ app.post('/api/register-family', async (req, res) => {
                 RETURNING *;
             `;
             const primaryValues = [
-                primaryMember.firstName, 
-                primaryMember.lastName, 
+                primaryMember.firstName,
+                primaryMember.lastName,
                 primaryMember.gender,
-                primaryMember.age, 
-                primaryMember.phoneNumber || '', 
+                primaryMember.age,
+                primaryMember.phoneNumber || '',
                 primaryMember.email,
-                primaryMember.address || '', 
+                primaryMember.address || '',
                 familyGroupId
             ];
             await pool.query(primaryInsert, primaryValues);
@@ -196,7 +197,7 @@ app.post('/api/register-family', async (req, res) => {
 
             // Ensure no duplicate family members with the same email
             const existingFamilyMember = await pool.query(
-                "SELECT id FROM patients WHERE email = $1;", 
+                "SELECT id FROM patients WHERE email = $1;",
                 [member.email]
             );
 
@@ -210,9 +211,9 @@ app.post('/api/register-family', async (req, res) => {
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8);
             `;
             const familyValues = [
-                member.firstName, 
-                member.lastName, 
-                member.gender, 
+                member.firstName,
+                member.lastName,
+                member.gender,
                 member.age,
                 member.phoneNumber || '',
                 member.email,
