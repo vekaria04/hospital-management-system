@@ -4,6 +4,7 @@ import PatientRegistrationForm from './PatientRegistration/PatientRegistrationFo
 import GroupRegistrationForm from './PatientRegistration/GroupRegistrationForm';
 import Homepage from './Homepage';
 import EditFamilyGroups from './FamilyGroups/EditFamilyGroups';
+import HealthQuestionnaire from './PatientRegistration/HealthQuestionnaire';
 
 const App = () => (
   <Router>
@@ -12,6 +13,7 @@ const App = () => (
       <Route path="/register" element={<PatientRegistrationForm />} />
       <Route path="/groupregister" element={<GroupRegistrationForm />} />
       <Route path="/edit-family-group" element={<EditFamilyGroups />} />
+      <Route path="/health-questionnaire/:patientId" element={<HealthQuestionnaire />} />
     </Routes>
   </Router>
 );

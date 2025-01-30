@@ -77,7 +77,7 @@ const PatientRegistrationForm = () => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(formData),
                 });
-
+    
                 if (response.ok) {
                     alert("Patient details updated successfully!");
                 } else {
@@ -91,8 +91,11 @@ const PatientRegistrationForm = () => {
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify(formData),
                 });
-
-                if (response.ok) {
+    
+                const data = await response.json();
+                console.log("🔹 API Response:", data); // Debugging to see if data.patient exists
+    
+                if (response.ok && data.patient && data.patient.id) {
                     alert("Patient registered successfully!");
                     setFormData({
                         firstName: "",
@@ -103,16 +106,18 @@ const PatientRegistrationForm = () => {
                         email: "",
                         address: "",
                     });
+                    navigate(`/health-questionnaire/${data.patient.id}`);
                 } else {
-                    const errorData = await response.json();
-                    alert(`Failed to register patient: ${errorData.error || "Unknown error"}`);
+                    alert("Unexpected response from server. Please try again.");
+                    console.error("Unexpected response:", data);
                 }
             }
         } catch (error) {
             console.error("Error submitting form:", error);
+            alert("An error occurred while submitting the form.");
         }
     };
-
+    
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
             <div className="max-w-lg w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-8 rounded-lg shadow-lg text-white">

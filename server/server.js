@@ -40,6 +40,32 @@ const createTables = async () => {
             );
         `);
 
+        await pool.query(`
+            CREATE TABLE IF NOT EXISTS health_questionnaires (
+                id SERIAL PRIMARY KEY,
+                patient_id INT REFERENCES patients(id) ON DELETE CASCADE,
+                allergies TEXT,
+                primary_language VARCHAR(255),
+                preferred_language VARCHAR (255),
+                primary_concern TEXT,
+                symptom_duration VARCHAR(255),
+                symptom_triggers TEXT,
+                pain_level INT,
+                chronic_conditions TEXT,
+                past_surgeries TEXT,
+                medications TEXT,
+                family_history TEXT,
+                diet TEXT,
+                substance_use TEXT,
+                physical_activity TEXT,
+                menstrual_cycle VARCHAR (255),
+                pregnancy_status VARCHAR (255),
+                mental_health TEXT,
+                sleep_concerns TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        `);
+
         console.log('Tables are ready');
     } catch (err) {
         console.error('Error creating tables:', err);
@@ -47,32 +73,87 @@ const createTables = async () => {
 };
 createTables();
 
-// Register Patient Route
 app.post('/api/register-patient', async (req, res) => {
     const { firstName, lastName, gender, age, phoneNumber, email, address } = req.body;
+    
     if (!firstName || !lastName || !gender || !age || !phoneNumber || !email) {
-        return res.json({ error: 'All mandatory fields are required' });
+        return res.status(400).json({ error: 'All mandatory fields are required' });
     }
 
     try {
-        const maxId = await pool.query('SELECT COALESCE(MAX(id), 0) AS max_id FROM patients;');
-        const nextId = maxId.rows[0].max_id + 1;
         const insertQuery = `
-                INSERT INTO patients (id, first_name, last_name, gender, age, phone_number, email, address)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING *;
-            `;
-        const values = [nextId, firstName, lastName, gender, age, phoneNumber, email, address];
+            INSERT INTO patients (first_name, last_name, gender, age, phone_number, email, address)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, first_name, last_name, email;
+        `;
+        const values = [firstName, lastName, gender, age, phoneNumber, email, address];
         const result = await pool.query(insertQuery, values);
 
-        res.json({ message: 'Patient registered successfully!', patient: result.rows[0] });
+        console.log("🔹 New Patient Created:", result.rows[0]);  // Debugging
+
+        if (result.rows.length > 0) {
+            return res.status(201).json({
+                message: 'Patient registered successfully!',
+                patient: result.rows[0]  // Ensuring patient object is returned
+            });
+        } else {
+            return res.status(500).json({ error: 'Failed to register patient.' });
+        }
     } catch (error) {
         console.error('Error saving patient:', error);
-        if (error.code === '23505') {
-            res.json({ error: 'Email already exists.' });
-        } else {
-            res.json({ error: 'Failed to register patient.' });
-        }
+        return res.status(500).json({ error: 'Failed to register patient.' });
+    }
+});
+
+
+// Route to submit health questionnaire
+app.post('/api/submit-health-questionnaire', async (req, res) => {
+    const {
+        patientId,
+        allergies,
+        primaryLanguage,
+        preferredLanguage,
+        primaryConcern,
+        symptomDuration,
+        symptomTriggers,
+        painLevel,
+        chronicConditions,
+        pastSurgeries,
+        medications,
+        familyHistory,
+        diet,
+        substanceUse,
+        physicalActivity,
+        menstrualCycle,
+        pregnancyStatus,
+        mentalHealth,
+        sleepConcerns
+    } = req.body;
+
+    try {
+        const insertQuery = `
+            INSERT INTO health_questionnaires (
+                patient_id, allergies, primary_language, preferred_language, primary_concern, symptom_duration,
+                symptom_triggers, pain_level, chronic_conditions, past_surgeries, medications, family_history,
+                diet, substance_use, physical_activity, menstrual_cycle, pregnancy_status, 
+                mental_health, sleep_concerns
+            )
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
+            RETURNING *;
+        `;
+        
+        const values = [
+            patientId, allergies, primaryLanguage, preferredLanguage, primaryConcern, symptomDuration,
+            symptomTriggers, painLevel, chronicConditions, pastSurgeries, medications, familyHistory,
+            diet, substanceUse, physicalActivity, menstrualCycle, pregnancyStatus,
+            mentalHealth, sleepConcerns
+        ];
+        
+        const result = await pool.query(insertQuery, values);
+        res.json({ message: 'Health questionnaire submitted successfully!', questionnaire: result.rows[0] });
+    } catch (error) {
+        console.error('Error saving health questionnaire:', error);
+        res.status(500).json({ error: 'Failed to submit health questionnaire.' });
     }
 });
 
