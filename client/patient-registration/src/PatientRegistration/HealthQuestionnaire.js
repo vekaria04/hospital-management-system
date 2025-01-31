@@ -110,7 +110,7 @@ const HealthQuestionnaire = () => {
             menstrualCycle:
               "When was your last menstrual period? Do you have a regular menstrual cycle?",
             pregnancyStatus:
-              "Are you currently pregnant or planning to become pregnant?",
+              "Are you currently pregnant, planning to become pregnant, or unsure?",
             mentalHealth:
               "Have you been experiencing feelings of stress, anxiety, or depression recently?",
             sleepConcerns:
@@ -140,15 +140,15 @@ const HealthQuestionnaire = () => {
                   {formData[field] === "Other" && (
                     <input
                       type="text"
-                      name={`other${
-                        field.charAt(0).toUpperCase() + field.slice(1)
-                      }`}
+                      name={
+                        field === "primaryLanguage"
+                          ? "otherPrimaryLanguage"
+                          : "otherPreferredLanguage"
+                      }
                       value={
-                        formData[
-                          `other${
-                            field.charAt(0).toUpperCase() + field.slice(1)
-                          }`
-                        ]
+                        field === "primaryLanguage"
+                          ? formData.otherPrimaryLanguage
+                          : formData.otherPreferredLanguage
                       }
                       onChange={handleChange}
                       placeholder="Please specify"
@@ -156,27 +156,36 @@ const HealthQuestionnaire = () => {
                     />
                   )}
                 </>
-              ) : field === "painLevel" ? (
-                <input
-                  type="number"
+              ) : field === "pregnancyStatus" ? (
+                <select
                   name={field}
-                  min="1"
-                  max="10"
-                  value={formData[field]}
+                  value={formData[field] || ""}
                   onChange={handleChange}
                   className="w-full p-2 bg-purple-100 text-black border rounded"
-                />
+                >
+                  <option value="">Select</option>
+                  <option value="Yes">Yes</option>
+                  <option value="No">No</option>
+                  <option value="Unknown">Unknown</option>
+                </select>
               ) : (
-                <textarea
+                <input
+                  type={field === "painLevel" ? "number" : "text"}
                   name={field}
-                  value={formData[field]}
+                  value={formData[field] || ""}
                   onChange={handleChange}
                   className="w-full p-2 bg-purple-100 text-black border rounded"
-                  rows="3"
-                ></textarea>
+                  min={field === "painLevel" ? 1 : undefined}
+                  max={field === "painLevel" ? 10 : undefined}
+                />
               )}
             </div>
           ))}
+          {Object.keys(errors).length > 0 && (
+            <p className="text-red-400 text-sm text-center">
+              Please fix the errors above before submitting.
+            </p>
+          )}
           <button
             type="submit"
             className="w-full py-3 px-6 bg-orange-500 text-white font-semibold rounded-md hover:bg-orange-600 shadow-md focus:ring-2 focus:ring-orange-400"
