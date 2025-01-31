@@ -1,5 +1,10 @@
 import React, { useState } from "react";
-import { BrowserRouter as useNavigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
 
 const PatientRegistrationForm = () => {
   const [formData, setFormData] = useState({
