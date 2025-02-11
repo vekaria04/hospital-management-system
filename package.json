@@ -1,5 +1,10 @@
 {
   "dependencies": {
-    "dotenv": "^16.4.7"
+    "bcrypt": "^5.1.1",
+    "dotenv": "^16.4.7",
+    "jsonwebtoken": "^9.0.2",
+    "passport": "^0.7.0",
+    "passport-local": "^1.0.0",
+    "validator": "^13.12.0"
   }
 }
