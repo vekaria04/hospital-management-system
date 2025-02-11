@@ -2,9 +2,18 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 require("dotenv").config();
-
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+const passport = require('passport');
+const LocalStrategy = require('passport-local').Strategy;
+const validator = require('validator');
 const app = express();
 app.use(bodyParser.json());
+app.use(express.json());
+app.use(passport.initialize());
+
+
+const JWT_SECRET = process.env.JWT_SECRET;
 
 const pool = new Pool({
   user: process.env.DB_USER,
@@ -21,6 +30,18 @@ pool
 
 const createTables = async () => {
   try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+          id SERIAL PRIMARY KEY,
+          first_name VARCHAR(255) NOT NULL,
+          last_name VARCHAR(255) NOT NULL,
+          email VARCHAR(255) UNIQUE NOT NULL,
+          password VARCHAR(255) NOT NULL,
+          role VARCHAR(50) DEFAULT 'User' CHECK (role IN ('User', 'Doctor', 'Admin')),
+          is_verified BOOLEAN DEFAULT FALSE,
+          verification_token TEXT
+      );
+    `);
     await pool.query(`
             CREATE TABLE IF NOT EXISTS family_groups (
                 id SERIAL PRIMARY KEY
@@ -68,52 +89,161 @@ const createTables = async () => {
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
         `);
-
+    // Create default Admin user
+    await pool.query(`
+  INSERT INTO users (first_name, last_name, email, password, role, is_verified)
+  VALUES ('Admin', 'User', 'dnagpal2@uwo', '${await bcrypt.hash(
+      "pass",
+      10
+    )}', 'Admin', TRUE)
+  ON CONFLICT (email) DO NOTHING;
+`);
     console.log("Tables are ready");
   } catch (err) {
     console.error("Error creating tables:", err);
   }
 };
 createTables();
+const authenticate = (req, res, next) => {
+  const token = req.header("Authorization")?.split(" ")[1];
+  if (!token) return res.status(401).json({ error: "Access Denied" });
 
+  try {
+    const verified = jwt.verify(token, JWT_SECRET);
+    req.user = verified;
+    next();
+  } catch (err) {
+    res.status(400).json({ error: "Invalid Token" });
+  }
+};
+const authorizeRoles = (...allowedRoles) => {
+  return (req, res, next) => {
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json({ error: "Access Denied" });
+    }
+    next();
+  };
+};
 app.post("/api/register-patient", async (req, res) => {
-  const { firstName, lastName, gender, age, phoneNumber, email, address } =
-    req.body;
+  const { firstName, lastName, email, password, gender, age, phoneNumber, address } = req.body;
 
-  if (!firstName || !lastName || !gender || !age || !phoneNumber || !email) {
-    return res.status(400).json({ error: "All mandatory fields are required" });
+  if (!firstName || !lastName || !email || !password || !gender || !age || !phoneNumber) {
+    return res.status(400).json({ error: "All fields are required" });
   }
 
   try {
-    const insertQuery = `
-            INSERT INTO patients (first_name, last_name, gender, age, phone_number, email, address)
-            VALUES ($1, $2, $3, $4, $5, $6, $7)
-            RETURNING id, first_name, last_name, email;
-        `;
-    const values = [
-      firstName,
-      lastName,
-      gender,
-      age,
-      phoneNumber,
-      email,
-      address,
-    ];
-    const result = await pool.query(insertQuery, values);
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const verificationToken = jwt.sign({ email }, JWT_SECRET, { expiresIn: "24h" });
 
-    console.log("🔹 New Patient Created:", result.rows[0]); // Debugging
+    const userResult = await pool.query(
+      "INSERT INTO users (first_name, last_name, email, password, verification_token) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, role",
+      [firstName, lastName, email, hashedPassword, verificationToken]
+    );
 
-    if (result.rows.length > 0) {
-      return res.status(201).json({
-        message: "Patient registered successfully!",
-        patient: result.rows[0], // Ensuring patient object is returned
-      });
-    } else {
-      return res.status(500).json({ error: "Failed to register patient." });
-    }
+    const patientResult = await pool.query(
+      "INSERT INTO patients (first_name, last_name, gender, age, phone_number, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, email",
+      [firstName, lastName, gender, age, phoneNumber, email, address]
+    );
+    const verificationLink = `http://localhost:3000/verify-email/${verificationToken}`;
+    res.status(201).json({
+      message: "User registered successfully",
+      user: userResult.rows[0],
+      patient: patientResult.rows[0],
+      verificationLink,
+    });
   } catch (error) {
-    console.error("Error saving patient:", error);
-    return res.status(500).json({ error: "Failed to register patient." });
+    console.error("Error registering user:", error);
+    res.status(500).json({ error: error.message });
+  }
+
+});
+app.get("/api/verify/:token", async (req, res) => {
+  const { token } = req.params;
+  console.log("Received verification token:", token); // Debugging
+
+  try {
+    // Decode JWT Token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || "3350Group16");
+    console.log("Decoded token:", decoded); // Debugging
+
+    // Check if user exists in users table
+    const userResult = await pool.query(
+      "SELECT id, email, is_verified FROM users WHERE email = $1",
+      [decoded.email]
+    );
+
+    if (userResult.rowCount === 0) {
+      console.error("User not found for email:", decoded.email);
+      return res.status(400).json({ error: "Invalid or expired token." });
+    }
+
+    const user = userResult.rows[0];
+
+    // If already verified
+    if (user.is_verified) {
+      return res.status(400).json({ error: "Email is already verified." });
+    }
+
+    // Update is_verified to TRUE
+    await pool.query(
+      "UPDATE users SET is_verified = TRUE, verification_token = NULL WHERE email = $1",
+      [decoded.email]
+    );
+
+    console.log(`User ${user.id} verified successfully`);
+
+    // Fetch the patient ID associated with this email
+    const patientResult = await pool.query(
+      "SELECT id FROM patients WHERE email = $1",
+      [decoded.email]
+    );
+
+    if (patientResult.rowCount === 0) {
+      return res.status(400).json({ error: "Patient record not found." });
+    }
+
+    const patient = patientResult.rows[0];
+
+    // Return `patient.id` to frontend for correct redirection
+    res.status(200).json({
+      message: "Email verified successfully!",
+      userId: patient.id,  // Sending patient ID instead of user ID
+    });
+
+  } catch (error) {
+    console.error("Verification error:", error);
+    res.status(400).json({ error: "Invalid or expired token." });
+  }
+});
+app.post("/api/login", async (req, res) => {
+  const { email, password } = req.body;
+  try {
+    const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    if (user.rows.length === 0 || !(await bcrypt.compare(password, user.rows[0].password))) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+    const token = jwt.sign({ id: user.rows[0].id, role: user.rows[0].role }, JWT_SECRET, { expiresIn: "24h" });
+    res.json({ message: "Login successful", token });
+  } catch (error) {
+    res.status(500).json({ error: "Error logging in" });
+  }
+});
+
+//Admin Promotes a User to Doctor 
+app.put("/api/promote/:id", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query("UPDATE users SET role = 'Doctor' WHERE id = $1 RETURNING id, email, role", [id]);
+
+    if (result.rowCount === 0) {
+      return res.status(404).json({ error: "User not found" });
+    }
+
+    res.json({ message: "User promoted to Doctor", user: result.rows[0] });
+  } catch (error) {
+    console.error("❌ Error promoting user:", error);
+    res.status(500).json({ error: "Error promoting user" });
   }
 });
 
@@ -231,27 +361,17 @@ app.get("/api/returning-patient/:email", async (req, res) => {
 });
 
 // Update an existing patient
-app.put("/api/update-patient/:id", async (req, res) => {
+app.put("/api/update-patient/:id", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
   const { id } = req.params;
-  const { firstName, lastName, gender, age, phoneNumber, email, address } =
-    req.body;
+  const { firstName, lastName, gender, age, phoneNumber, email, address } = req.body;
 
   try {
     const updateQuery = `
-            UPDATE patients
-            SET first_name = $1, last_name = $2, gender = $3, age = $4, phone_number = $5, email = $6, address = $7
-            WHERE id = $8 RETURNING *;
-        `;
-    const values = [
-      firstName,
-      lastName,
-      gender,
-      age,
-      phoneNumber,
-      email,
-      address,
-      id,
-    ];
+      UPDATE patients
+      SET first_name = $1, last_name = $2, gender = $3, age = $4, phone_number = $5, email = $6, address = $7
+      WHERE id = $8 RETURNING *;
+    `;
+    const values = [firstName, lastName, gender, age, phoneNumber, email, address, id];
     const result = await pool.query(updateQuery, values);
 
     if (result.rowCount === 0) {
@@ -443,8 +563,8 @@ app.get("/api/family-group/:email", async (req, res) => {
   }
 });
 
-//Update family group information
-app.put("/api/family-group/update-member/:id", async (req, res) => {
+// Update a family group member (Only Doctor or Admin)
+app.put("/api/family-group/update-member/:id", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
   const { id } = req.params;
   const { firstName, lastName, phone, email, address } = req.body;
 
@@ -481,8 +601,8 @@ app.put("/api/family-group/update-member/:id", async (req, res) => {
   }
 });
 
-//Remove a family member from group
-app.delete("/api/family-group/remove-member/:id", async (req, res) => {
+// Remove a family member from the group (Only Doctor or Admin)
+app.delete("/api/family-group/remove-member/:id", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -502,6 +622,5 @@ app.delete("/api/family-group/remove-member/:id", async (req, res) => {
     res.status(500).json({ error: "Failed to remove family member" });
   }
 });
-
 const port = 3000;
 app.listen(port, () => console.log(`Listening on port ${port}...`));
