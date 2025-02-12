@@ -92,7 +92,7 @@ const createTables = async () => {
     // Create default Admin user
     await pool.query(`
   INSERT INTO users (first_name, last_name, email, password, role, is_verified)
-  VALUES ('Admin', 'User', 'dnagpal2@uwo', '${await bcrypt.hash(
+  VALUES ('Admin', 'User', 'dnagpal2@uwo.com', '${await bcrypt.hash(
       "pass",
       10
     )}', 'Admin', TRUE)
@@ -125,38 +125,47 @@ const authorizeRoles = (...allowedRoles) => {
   };
 };
 app.post("/api/register-patient", async (req, res) => {
-  const { firstName, lastName, email, password, gender, age, phoneNumber, address } = req.body;
+  const { firstName, lastName, gender, age, phoneNumber, email, address } =
+    req.body;
 
-  if (!firstName || !lastName || !email || !password || !gender || !age || !phoneNumber) {
-    return res.status(400).json({ error: "All fields are required" });
+  if (!firstName || !lastName || !gender || !age || !phoneNumber || !email) {
+    return res.status(400).json({ error: "All mandatory fields are required" });
   }
 
   try {
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const verificationToken = jwt.sign({ email }, JWT_SECRET, { expiresIn: "24h" });
+    const insertQuery = `
+            INSERT INTO patients (first_name, last_name, gender, age, phone_number, email, address)
+            VALUES ($1, $2, $3, $4, $5, $6, $7)
+            RETURNING id, first_name, last_name, email;
+        `;
+    const values = [
+      firstName,
+      lastName,
+      gender,
+      age,
+      phoneNumber,
+      email,
+      address,
+    ];
+    const result = await pool.query(insertQuery, values);
 
-    const userResult = await pool.query(
-      "INSERT INTO users (first_name, last_name, email, password, verification_token) VALUES ($1, $2, $3, $4, $5) RETURNING id, email, role",
-      [firstName, lastName, email, hashedPassword, verificationToken]
-    );
+    console.log("🔹 New Patient Created:", result.rows[0]); // Debugging
 
-    const patientResult = await pool.query(
-      "INSERT INTO patients (first_name, last_name, gender, age, phone_number, email, address) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING id, email",
-      [firstName, lastName, gender, age, phoneNumber, email, address]
-    );
-    const verificationLink = `http://localhost:3000/verify-email/${verificationToken}`;
-    res.status(201).json({
-      message: "User registered successfully",
-      user: userResult.rows[0],
-      patient: patientResult.rows[0],
-      verificationLink,
-    });
+    if (result.rows.length > 0) {
+      return res.status(201).json({
+        message: "Patient registered successfully!",
+        patient: result.rows[0], // Ensuring patient object is returned
+      });
+    } else {
+      return res.status(500).json({ error: "Failed to register patient." });
+    }
   } catch (error) {
-    console.error("Error registering user:", error);
-    res.status(500).json({ error: error.message });
+    console.error("Error saving patient:", error);
+    return res.status(500).json({ error: "Failed to register patient." });
   }
-
 });
+
+
 app.get("/api/verify/:token", async (req, res) => {
   const { token } = req.params;
   console.log("Received verification token:", token); // Debugging

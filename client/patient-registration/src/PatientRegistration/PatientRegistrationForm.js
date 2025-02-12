@@ -1,5 +1,10 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import {
+  BrowserRouter as Router,
+  Route,
+  Routes,
+  useNavigate,
+} from "react-router-dom";
 
 const PatientRegistrationForm = () => {
   const [formData, setFormData] = useState({
@@ -10,15 +15,14 @@ const PatientRegistrationForm = () => {
     phoneNumber: "",
     email: "",
     address: "",
-    password: "",
   });
-
   const navigate = useNavigate();
-  const navigateHome = () => navigate("/");
+  const navigateHome = () => {
+    navigate("/");
+  };
   const [errors, setErrors] = useState({});
   const [email, setEmail] = useState(""); // Email input for fetching existing data
   const [existingPatientId, setExistingPatientId] = useState(null); // Track if patient exists for updates
-  const [verificationToken, setVerificationToken] = useState(null); // Store verification token
 
   const handleFetchData = async () => {
     try {
@@ -33,12 +37,11 @@ const PatientRegistrationForm = () => {
           phoneNumber: data.phone_number,
           email: data.email,
           address: data.address,
-          password: "",
         });
-        setExistingPatientId(data.id);
+        setExistingPatientId(data.id); // Store existing patient ID for updating
       } else {
         alert("Patient not found. You can register a new patient.");
-        setExistingPatientId(null);
+        setExistingPatientId(null); // No existing patient found
       }
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -56,8 +59,6 @@ const PatientRegistrationForm = () => {
       newErrors.phoneNumber = "Phone number must be valid";
     if (!formData.email || !/\S+@\S+\.\S+/.test(formData.email))
       newErrors.email = "Email must be valid";
-    if (!formData.password || formData.password.length < 6)
-      newErrors.password = "Password must be at least 6 characters";
     return newErrors;
   };
 
@@ -73,7 +74,6 @@ const PatientRegistrationForm = () => {
       return;
     }
     setErrors({});
-
     try {
       if (existingPatientId) {
         // If patient exists, update record
@@ -103,13 +103,20 @@ const PatientRegistrationForm = () => {
         });
 
         const data = await response.json();
-        if (response.ok && data.patient && data.patient.id) {
-          alert("Patient registered successfully! Please verify your email.");
-          setVerificationToken(data.verificationLink); // Store verification link
+        console.log("🔹 API Response:", data); // Debugging to see if data.patient exists
 
-          setTimeout(() => {
-            navigate(`/verify-email/${data.verificationLink.split('/').pop()}`);
-          }, 2000); // Redirect to verify page after 2 seconds
+        if (response.ok && data.patient && data.patient.id) {
+          alert("Patient registered successfully!");
+          setFormData({
+            firstName: "",
+            lastName: "",
+            gender: "",
+            age: "",
+            phoneNumber: "",
+            email: "",
+            address: "",
+          });
+          navigate(`/health-questionnaire/${data.patient.id}`);
         } else {
           alert("Unexpected response from server. Please try again.");
           console.error("Unexpected response:", data);
@@ -152,7 +159,15 @@ const PatientRegistrationForm = () => {
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-4">
-          {["firstName", "lastName", "gender", "age", "phoneNumber", "email", "address", "password"].map((field) => (
+          {[
+            "firstName",
+            "lastName",
+            "gender",
+            "age",
+            "phoneNumber",
+            "email",
+            "address",
+          ].map((field) => (
             <div key={field}>
               <label className="block text-sm font-medium capitalize">
                 {field.replace(/([A-Z])/g, " $1")}
@@ -189,11 +204,14 @@ const PatientRegistrationForm = () => {
               )}
               {errors[field] && (
                 <p className="text-red-400 text-sm mt-1">{errors[field]}</p>
-              )}            </div>
+              )}
+            </div>
           ))}
           <button
             type="submit"
-            className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md focus:ring-2 focus:ring-orange-400 ${existingPatientId ? "bg-blue-500 hover:bg-blue-600" : "bg-orange-500 hover:bg-orange-600"
+            className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md focus:ring-2 focus:ring-orange-400 ${existingPatientId
+              ? "bg-blue-500 hover:bg-blue-600"
+              : "bg-orange-500 hover:bg-orange-600"
               }`}
           >
             {existingPatientId ? "Update" : "Submit"}
