@@ -2,16 +2,15 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 require("dotenv").config();
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-const passport = require('passport');
-const LocalStrategy = require('passport-local').Strategy;
-const validator = require('validator');
+const bcrypt = require("bcrypt");
+const jwt = require("jsonwebtoken");
+const passport = require("passport");
+const LocalStrategy = require("passport-local").Strategy;
+const validator = require("validator");
 const app = express();
 app.use(bodyParser.json());
 app.use(express.json());
 app.use(passport.initialize());
-
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -37,7 +36,7 @@ const createTables = async () => {
           last_name VARCHAR(255) NOT NULL,
           email VARCHAR(255) UNIQUE NOT NULL,
           password VARCHAR(255) NOT NULL,
-          role VARCHAR(50) DEFAULT 'User' CHECK (role IN ('User', 'Doctor', 'Admin')),
+          role VARCHAR(50) DEFAULT 'User' CHECK (role IN ('User','Volunteer', 'Doctor', 'Admin')),
           is_verified BOOLEAN DEFAULT FALSE,
           verification_token TEXT
       );
@@ -93,9 +92,9 @@ const createTables = async () => {
     await pool.query(`
   INSERT INTO users (first_name, last_name, email, password, role, is_verified)
   VALUES ('Admin', 'User', 'dnagpal2@uwo.com', '${await bcrypt.hash(
-      "pass",
-      10
-    )}', 'Admin', TRUE)
+    "pass",
+    10
+  )}', 'Admin', TRUE)
   ON CONFLICT (email) DO NOTHING;
 `);
     console.log("Tables are ready");
@@ -165,7 +164,6 @@ app.post("/api/register-patient", async (req, res) => {
   }
 });
 
-
 app.get("/api/verify/:token", async (req, res) => {
   const { token } = req.params;
   console.log("Received verification token:", token); // Debugging
@@ -216,9 +214,8 @@ app.get("/api/verify/:token", async (req, res) => {
     // Return `patient.id` to frontend for correct redirection
     res.status(200).json({
       message: "Email verified successfully!",
-      userId: patient.id,  // Sending patient ID instead of user ID
+      userId: patient.id, // Sending patient ID instead of user ID
     });
-
   } catch (error) {
     console.error("Verification error:", error);
     res.status(400).json({ error: "Invalid or expired token." });
@@ -227,34 +224,51 @@ app.get("/api/verify/:token", async (req, res) => {
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
   try {
-    const user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (user.rows.length === 0 || !(await bcrypt.compare(password, user.rows[0].password))) {
+    const user = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
+    if (
+      user.rows.length === 0 ||
+      !(await bcrypt.compare(password, user.rows[0].password))
+    ) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
-    const token = jwt.sign({ id: user.rows[0].id, role: user.rows[0].role }, JWT_SECRET, { expiresIn: "24h" });
+    const token = jwt.sign(
+      { id: user.rows[0].id, role: user.rows[0].role },
+      JWT_SECRET,
+      { expiresIn: "24h" }
+    );
     res.json({ message: "Login successful", token });
   } catch (error) {
     res.status(500).json({ error: "Error logging in" });
   }
 });
 
-//Admin Promotes a User to Doctor 
-app.put("/api/promote/:id", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { id } = req.params;
+//Admin Promotes a User to Doctor
+app.put(
+  "/api/promote/:id",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { id } = req.params;
 
-  try {
-    const result = await pool.query("UPDATE users SET role = 'Doctor' WHERE id = $1 RETURNING id, email, role", [id]);
+    try {
+      const result = await pool.query(
+        "UPDATE users SET role = 'Doctor' WHERE id = $1 RETURNING id, email, role",
+        [id]
+      );
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "User not found" });
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({ message: "User promoted to Doctor", user: result.rows[0] });
+    } catch (error) {
+      console.error("❌ Error promoting user:", error);
+      res.status(500).json({ error: "Error promoting user" });
     }
-
-    res.json({ message: "User promoted to Doctor", user: result.rows[0] });
-  } catch (error) {
-    console.error("❌ Error promoting user:", error);
-    res.status(500).json({ error: "Error promoting user" });
   }
-});
+);
 
 // Route to submit health questionnaire
 app.post("/api/submit-health-questionnaire", async (req, res) => {
@@ -370,32 +384,47 @@ app.get("/api/returning-patient/:email", async (req, res) => {
 });
 
 // Update an existing patient
-app.put("/api/update-patient/:id", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
-  const { id } = req.params;
-  const { firstName, lastName, gender, age, phoneNumber, email, address } = req.body;
+app.put(
+  "/api/update-patient/:id",
+  authenticate,
+  authorizeRoles("Doctor", "Admin"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, gender, age, phoneNumber, email, address } =
+      req.body;
 
-  try {
-    const updateQuery = `
+    try {
+      const updateQuery = `
       UPDATE patients
       SET first_name = $1, last_name = $2, gender = $3, age = $4, phone_number = $5, email = $6, address = $7
       WHERE id = $8 RETURNING *;
     `;
-    const values = [firstName, lastName, gender, age, phoneNumber, email, address, id];
-    const result = await pool.query(updateQuery, values);
+      const values = [
+        firstName,
+        lastName,
+        gender,
+        age,
+        phoneNumber,
+        email,
+        address,
+        id,
+      ];
+      const result = await pool.query(updateQuery, values);
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Patient not found" });
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+
+      res.json({
+        message: "Patient updated successfully!",
+        patient: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Error updating patient:", error);
+      res.status(500).json({ error: "Failed to update patient." });
     }
-
-    res.json({
-      message: "Patient updated successfully!",
-      patient: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Error updating patient:", error);
-    res.status(500).json({ error: "Failed to update patient." });
   }
-});
+);
 
 //Group Patient Registration
 app.post("/api/register-family", async (req, res) => {
@@ -573,63 +602,73 @@ app.get("/api/family-group/:email", async (req, res) => {
 });
 
 // Update a family group member (Only Doctor or Admin)
-app.put("/api/family-group/update-member/:id", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
-  const { id } = req.params;
-  const { firstName, lastName, phone, email, address } = req.body;
+app.put(
+  "/api/family-group/update-member/:id",
+  authenticate,
+  authorizeRoles("Doctor", "Admin"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, phone, email, address } = req.body;
 
-  console.log("🔹 Received update request:", req.body);
+    console.log("🔹 Received update request:", req.body);
 
-  if (!firstName || !lastName || !phone || !email || !address) {
-    console.error("❌ Missing required fields:", req.body);
-    return res.status(400).json({ error: "All fields must be filled." });
-  }
+    if (!firstName || !lastName || !phone || !email || !address) {
+      console.error("❌ Missing required fields:", req.body);
+      return res.status(400).json({ error: "All fields must be filled." });
+    }
 
-  try {
-    const updateQuery = `
+    try {
+      const updateQuery = `
         UPDATE patients
         SET first_name = $1, last_name = $2, phone_number = $3, email = $4, address = $5
         WHERE id = $6 RETURNING *;
       `;
 
-    const values = [firstName, lastName, phone, email, address, id];
+      const values = [firstName, lastName, phone, email, address, id];
 
-    const result = await pool.query(updateQuery, values);
+      const result = await pool.query(updateQuery, values);
 
-    if (result.rowCount === 0) {
-      console.error("❌ No family member found for ID:", id);
-      return res.status(404).json({ error: "Family member not found" });
+      if (result.rowCount === 0) {
+        console.error("❌ No family member found for ID:", id);
+        return res.status(404).json({ error: "Family member not found" });
+      }
+
+      res.json({
+        message: "Family member updated successfully!",
+        member: result.rows[0],
+      });
+    } catch (error) {
+      console.error("❌ Error updating family member:", error);
+      res.status(500).json({ error: "Failed to update family member." });
     }
-
-    res.json({
-      message: "Family member updated successfully!",
-      member: result.rows[0],
-    });
-  } catch (error) {
-    console.error("❌ Error updating family member:", error);
-    res.status(500).json({ error: "Failed to update family member." });
   }
-});
+);
 
 // Remove a family member from the group (Only Doctor or Admin)
-app.delete("/api/family-group/remove-member/:id", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
-  const { id } = req.params;
+app.delete(
+  "/api/family-group/remove-member/:id",
+  authenticate,
+  authorizeRoles("Doctor", "Admin"),
+  async (req, res) => {
+    const { id } = req.params;
 
-  try {
-    const deleteQuery = `DELETE FROM patients WHERE id = $1 RETURNING *;`;
-    const result = await pool.query(deleteQuery, [id]);
+    try {
+      const deleteQuery = `DELETE FROM patients WHERE id = $1 RETURNING *;`;
+      const result = await pool.query(deleteQuery, [id]);
 
-    if (result.rowCount === 0) {
-      return res.status(404).json({ error: "Family member not found" });
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: "Family member not found" });
+      }
+
+      res.json({
+        message: "Family member removed successfully",
+        member: result.rows[0],
+      });
+    } catch (error) {
+      console.error("Error removing family member:", error);
+      res.status(500).json({ error: "Failed to remove family member" });
     }
-
-    res.json({
-      message: "Family member removed successfully",
-      member: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Error removing family member:", error);
-    res.status(500).json({ error: "Failed to remove family member" });
   }
-});
+);
 const port = 3000;
 app.listen(port, () => console.log(`Listening on port ${port}...`));
