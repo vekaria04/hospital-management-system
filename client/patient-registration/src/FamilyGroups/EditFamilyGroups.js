@@ -58,8 +58,12 @@ const EditFamilyGroups = () => {
     setIsLoading(true);
 
     try {
+      const token = localStorage.getItem("token");
       const response = await fetch(`/api/family-group/remove-member/${id}`, {
         method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       });
 
       if (!response.ok) {
@@ -95,11 +99,15 @@ const EditFamilyGroups = () => {
     setError("");
 
     try {
+      const token = localStorage.getItem("token");
       const response = await fetch(
         `/api/family-group/update-member/${member.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
           body: JSON.stringify({
             firstName: member.firstName,
             lastName: member.lastName,

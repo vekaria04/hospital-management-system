@@ -240,6 +240,7 @@ app.post("/api/login", async (req, res) => {
     );
     res.json({ message: "Login successful", token });
   } catch (error) {
+    console.error("login error", error);
     res.status(500).json({ error: "Error logging in" });
   }
 });
