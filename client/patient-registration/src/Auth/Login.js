@@ -18,6 +18,7 @@ const Login = () => {
             const data = await response.json();
             if (response.ok) {
                 localStorage.setItem("token", data.token);
+                console.log("Token: ", data.token);
                 alert("Login successful!");
                 navigate("/");
             } else {
