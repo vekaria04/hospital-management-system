@@ -7,8 +7,14 @@ const AdminDashboard = () => {
   const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [patients, setPatients] = useState([]);
   const [editDoctor, setEditDoctor] = useState(null);
-  const [newDoctor, setNewDoctor] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "" });
-  const [doctorForm, setDoctorForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "" });
+  const [newDoctor, setNewDoctor] = useState({
+    firstName: "",
+    lastName: "",
+    email: "",
+    phoneNumber: "",
+    specialty: "",
+    password: "" // New field
+  });  const [doctorForm, setDoctorForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "" });
 
   // ✅ Fetch all doctors on page load
   useEffect(() => {
@@ -49,7 +55,7 @@ const AdminDashboard = () => {
   // ✅ Add a new doctor
   const handleAddDoctor = () => {
     const token = localStorage.getItem("token");
-
+  
     fetch("/api/doctors", {
       method: "POST",
       headers: {
@@ -64,11 +70,13 @@ const AdminDashboard = () => {
           console.error("❌ Error adding doctor:", data.error);
           return;
         }
+  
         setDoctors([...doctors, data.doctor]); // ✅ Update UI
-        setNewDoctor({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "" }); // ✅ Reset Form
+        setNewDoctor({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "", password: "" }); // ✅ Reset Form
       })
       .catch((err) => console.error("❌ Error adding doctor:", err));
   };
+  
 
   // ✅ Handle doctor edit
   const handleEditDoctor = (doctor) => {
@@ -147,6 +155,7 @@ const AdminDashboard = () => {
         <input type="text" placeholder="First Name" value={newDoctor.firstName} onChange={(e) => setNewDoctor({ ...newDoctor, firstName: e.target.value })} className="w-full p-2 border rounded mb-2" />
         <input type="text" placeholder="Last Name" value={newDoctor.lastName} onChange={(e) => setNewDoctor({ ...newDoctor, lastName: e.target.value })} className="w-full p-2 border rounded mb-2" />
         <input type="email" placeholder="Email" value={newDoctor.email} onChange={(e) => setNewDoctor({ ...newDoctor, email: e.target.value })} className="w-full p-2 border rounded mb-2" />
+        <input type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => setNewDoctor({ ...newDoctor, password: e.target.value })} className="w-full p-2 border rounded mb-2" />
         <input type="text" placeholder="Phone Number" value={newDoctor.phoneNumber} onChange={(e) => setNewDoctor({ ...newDoctor, phoneNumber: e.target.value })} className="w-full p-2 border rounded mb-2" />
         <input type="text" placeholder="Specialty" value={newDoctor.specialty} onChange={(e) => setNewDoctor({ ...newDoctor, specialty: e.target.value })} className="w-full p-2 border rounded mb-2" />
         <button onClick={handleAddDoctor} className="bg-green-500 text-white px-4 py-2 rounded">Add Doctor</button>

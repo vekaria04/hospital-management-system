@@ -238,26 +238,42 @@ app.get("/api/verify/:token", async (req, res) => {
     res.status(400).json({ error: "Invalid or expired token." });
   }
 });
+
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
+
   try {
-    const user = await pool.query("SELECT * FROM users WHERE email = $1", [
-      email,
-    ]);
-    if (
-      user.rows.length === 0 ||
-      !(await bcrypt.compare(password, user.rows[0].password))
-    ) {
+    // ✅ Check if user exists (Search in both users and doctors table)
+    let user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+
+    if (user.rows.length === 0) {
+      user = await pool.query("SELECT * FROM doctors WHERE email = $1", [email]);
+    }
+
+    if (user.rows.length === 0) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
+
+    // ✅ Compare passwords
+    const isMatch = await bcrypt.compare(password, user.rows[0].password);
+    if (!isMatch) {
+      return res.status(401).json({ error: "Invalid email or password" });
+    }
+
+    // ✅ Get user role
+    const role = user.rows[0].role || "Doctor"; // Default to Doctor if role is missing
+
+    // ✅ Generate JWT Token (Include role)
     const token = jwt.sign(
-      { id: user.rows[0].id, role: user.rows[0].role },
-      JWT_SECRET,
+      { id: user.rows[0].id, role },
+      process.env.JWT_SECRET,
       { expiresIn: "24h" }
     );
-    res.json({ message: "Login successful", token });
+
+    res.json({ message: "Login successful", token, role });
+
   } catch (error) {
-    console.error("login error", error);
+    console.error("❌ Login error:", error);
     res.status(500).json({ error: "Error logging in" });
   }
 });
@@ -711,25 +727,42 @@ app.get("/api/doctors", authenticate, authorizeRoles("Admin"), async (req, res) 
 
 //Add a doctor
 app.post("/api/doctors", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { firstName, lastName, email, phoneNumber, specialty } = req.body;
+  const { firstName, lastName, email, phoneNumber, specialty, password } = req.body;
 
-  if (!firstName || !lastName || !email || !specialty) {
-    return res.status(400).json({ error: "All fields are required." });
+  console.log("🔹 Received doctor registration request:", req.body); // Debugging
+
+  if (!firstName || !lastName || !email || !specialty || !password) {
+    console.error("❌ Missing required fields");
+    return res.status(400).json({ error: "All fields, including password, are required." });
   }
 
   try {
+    // ✅ Check if email already exists
+    const existingDoctor = await pool.query("SELECT * FROM doctors WHERE email = $1", [email]);
+    if (existingDoctor.rows.length > 0) {
+      console.warn(`⚠️ Doctor with email ${email} already exists.`);
+      return res.status(409).json({ error: "Doctor with this email already exists." });
+    }
+
+    // ✅ Hash the password before saving it
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    // ✅ Insert doctor with encrypted password
     const result = await pool.query(
-      `INSERT INTO doctors (first_name, last_name, email, phone_number, specialty)
-       VALUES ($1, $2, $3, $4, $5) RETURNING *;`,
-      [firstName, lastName, email, phoneNumber, specialty]
+      `INSERT INTO doctors (first_name, last_name, email, phone_number, specialty, password)
+       VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;`,
+      [firstName, lastName, email, phoneNumber, specialty, hashedPassword]
     );
 
+    console.log("✅ Doctor added successfully:", result.rows[0]);
     res.status(201).json({ message: "Doctor added successfully!", doctor: result.rows[0] });
+
   } catch (error) {
-    console.error("Error adding doctor:", error);
+    console.error("❌ Error adding doctor:", error);
     res.status(500).json({ error: "Failed to add doctor." });
   }
 });
+
 
 
 //Fetch patients assigned to a doctor

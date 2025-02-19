@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  Link,
 } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
@@ -17,6 +18,56 @@ import VerifyEmail from "./Auth/VerifyEmail";
 import Login from "./Auth/Login";
 import AdminDashboard from "./Dashboards/adminDash";
 import DoctorDashboard from "./Dashboards/doctorDash";
+
+// Navbar component
+const Navbar = () => {
+  const token = localStorage.getItem("token");
+  let role = null;
+
+  if (token) {
+    try {
+      const decoded = jwtDecode(token);
+      role = decoded.role; // Extract role from token
+    } catch (error) {
+      console.error("Error decoding token:", error);
+    }
+  }
+
+  return (
+    <nav className="bg-blue-600 p-4 flex justify-between items-center">
+      <Link to="/" className="text-white text-lg font-bold">
+        Hospital System
+      </Link>
+      <div className="flex space-x-4">
+        {role === "Admin" && (
+          <Link to="/admin-dashboard" className="text-white">
+            Admin Dashboard
+          </Link>
+        )}
+        {role === "Doctor" && (
+          <Link to="/doctor-dashboard" className="text-white">
+            Doctor Dashboard
+          </Link>
+        )}
+        {token ? (
+          <button
+            onClick={() => {
+              localStorage.clear();
+              window.location.href = "/login"; // Redirect to login
+            }}
+            className="bg-red-500 text-white px-4 py-2 rounded"
+          >
+            Logout
+          </button>
+        ) : (
+          <Link to="/login" className="text-white">
+            Login
+          </Link>
+        )}
+      </div>
+    </nav>
+  );
+};
 
 // ProtectedRoute component to guard routes based on authentication and role
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -33,7 +84,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
       console.log("Token expired");
       return <Navigate to="/login" replace />;
     }
-    role = decoded.role; // Assumes token payload includes a "role" field
+    role = decoded.role; // Extract role from token
   } catch (error) {
     console.error("Error decoding token:", error);
     return <Navigate to="/login" replace />;
@@ -51,6 +102,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const App = () => {
   return (
     <Router>
+      <Navbar /> {/* ✅ Added Navbar here */}
       <Routes>
         {/* Public Route: Login */}
         <Route path="/login" element={<Login />} />

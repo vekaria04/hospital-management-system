@@ -14,13 +14,17 @@ const Login = () => {
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ email, password }),
             });
-
+    
             const data = await response.json();
             if (response.ok) {
-                localStorage.setItem("token", data.token);
-                console.log("Token: ", data.token);
+                localStorage.setItem("token", data.token);  // ✅ Store token
+                localStorage.setItem("role", data.role);    // ✅ Store role
+    
+                console.log("🔑 Token:", data.token);
+                console.log("👤 User Role:", data.role);
+    
                 alert("Login successful!");
-                navigate("/");
+                navigate("/"); // Redirect to home
             } else {
                 alert("Login failed: " + data.error);
             }
@@ -28,6 +32,7 @@ const Login = () => {
             console.error("Login error:", error);
         }
     };
+    
 
     return (
         <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
