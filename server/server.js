@@ -357,10 +357,6 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-
-
-
-
 // Route to submit health questionnaire
 app.post("/api/submit-health-questionnaire", async (req, res) => {
   let {
@@ -1102,6 +1098,136 @@ app.delete(
     }
   }
 );
+
+/**
+ * ============================
+ * Doctor Dashboard Endpoints
+ * ============================
+ */
+
+/**
+ * GET /api/patients
+ * 
+ * Returns a list of patients, optionally filtered by query parameters:
+ *   - firstName
+ *   - lastName
+ *   - email
+ *   - phoneNumber
+ *   - familyGroupId
+ *   - assignedDoctorId
+ *
+ * Accessible to users with role "Doctor" or "Admin".
+ */
+app.get("/api/patients", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
+  const { firstName, lastName, email, phoneNumber, familyGroupId, assignedDoctorId } = req.query;
+  try {
+    const query = `
+      SELECT * FROM patients
+      WHERE 
+        ($1::text IS NULL OR first_name ILIKE '%' || $1 || '%')
+        AND ($2::text IS NULL OR last_name ILIKE '%' || $2 || '%')
+        AND ($3::text IS NULL OR email ILIKE '%' || $3 || '%')
+        AND ($4::text IS NULL OR phone_number ILIKE '%' || $4 || '%')
+        AND ($5::int IS NULL OR family_group_id = $5)
+        AND ($6::int IS NULL OR assigned_doctor_id = $6)
+      ORDER BY id ASC;
+    `;
+    const values = [
+      firstName || null,
+      lastName || null,
+      email || null,
+      phoneNumber || null,
+      familyGroupId ? parseInt(familyGroupId) : null,
+      assignedDoctorId ? parseInt(assignedDoctorId) : null,
+    ];
+    const result = await pool.query(query, values);
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching patients:", error);
+    res.status(500).json({ error: "Failed to fetch patients" });
+  }
+});
+
+/**
+ * PUT /api/patients/:id/assign-doctor
+ *
+ * Updates the `assigned_doctor_id` for a patient.
+ * - If the current (old) assignment is null (i.e. the first assignment),
+ *   no audit log is created.
+ * - If the patient already has an assignment (non-null) and it changes,
+ *   an UPDATE event is logged.
+ *
+ * Accessible to users with role "Doctor" or "Admin".
+ */
+app.put("/api/patients/:id/assign-doctor", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
+  const { id } = req.params; // Patient ID from URL
+  const { assignedDoctorId } = req.body; // New doctor assignment
+
+  if (!assignedDoctorId) {
+    return res.status(400).json({ error: "Assigned doctor ID is required" });
+  }
+
+  try {
+    // Retrieve the current patient record
+    const patientResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+    if (patientResult.rowCount === 0) {
+      return res.status(404).json({ error: "Patient not found" });
+    }
+    const patient = patientResult.rows[0];
+    const oldAssignment = patient.assigned_doctor_id;
+
+    // Update the assigned_doctor_id
+    const updateQuery = `
+      UPDATE patients
+      SET assigned_doctor_id = $1
+      WHERE id = $2
+      RETURNING *;
+    `;
+    const updateResult = await pool.query(updateQuery, [assignedDoctorId, id]);
+    const updatedPatient = updateResult.rows[0];
+
+    // Log an audit event only if the patient had an existing assignment (non-null) that changed
+    if (oldAssignment !== null && oldAssignment !== assignedDoctorId) {
+      logEvent({
+        user_id: req.user.id, // The doctor/admin performing the update
+        action: "UPDATE",
+        entity: "patient",
+        entity_id: id,
+        old_data: patient,
+        new_data: updatedPatient,
+        metadata: { endpoint: "PUT /api/patients/:id/assign-doctor" }
+      });
+    }
+
+    res.json({
+      message: "Doctor assignment updated successfully",
+      patient: updatedPatient,
+    });
+  } catch (error) {
+    console.error("Error updating doctor assignment:", error);
+    res.status(500).json({ error: "Failed to update doctor assignment" });
+  }
+});
+
+/**
+ * GET /api/doctors
+ *
+ * Returns a list of doctors. This endpoint can be used to populate a dropdown
+ * for selecting a doctor to assign to a patient.
+ *
+ * Accessible to users with role "Doctor" or "Admin".
+ */
+app.get("/api/doctorsList", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM doctors ORDER BY id ASC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching doctors:", error);
+    res.status(500).json({ error: "Failed to fetch doctors" });
+  }
+});
+
+
 
 const port = 3000;
 app.listen(port, () => console.log(`Listening on port ${port}...`));
