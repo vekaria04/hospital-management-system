@@ -144,16 +144,7 @@ const createTables = async () => {
 
 createTables();
 
-/** EVENT LOG FUNCTION FOR ADMIN DASHBOARD -- Logs an audit event to the audit_logs table.
- * 
- *  @param {Object} params - The parameters for the audit event.
- *  @param {number} [params.user_id] - ID of the user performing the action (optional).
- *  @param {string} params.action - Type of action (e.g., "CREATE", "UPDATE", "DELETE").
- *  @param {string} params.entity - The entity affected (e.g., "patient", "doctor").
- *  @param {number} params.entity_id - The ID of the affected record.
- *  @param {Object|null} [params.old_data] - Snapshot of the record before the change.
- *  @param {Object|null} [params.new_data] - Snapshot of the record after the change.
- *  @param {Object|null} [params.metadata] - Additional context (e.g., IP address, session info).
+/** EVENT LOGs APIs & Functions FOR ADMIN DASHBOARD -- Logs an audit event to the audit_logs table.
  */
 async function logEvent({
   user_id = null,
@@ -178,6 +169,21 @@ async function logEvent({
   }
 }
 
+// Get Audit Logs API for Admin Dash
+app.get("/api/audit-logs", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM audit_logs ORDER BY created_at DESC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching audit logs:", error);
+    res.status(500).json({ error: "Failed to fetch audit logs" });
+  }
+});
+
+
+/**
+ *  Authentication APIs
+ */
 
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.split(" ")[1];
@@ -200,6 +206,9 @@ const authorizeRoles = (...allowedRoles) => {
     next();
   };
 };
+
+
+
 
 // Patient Registration 
 app.post("/api/register-patient", async (req, res) => {
@@ -354,31 +363,7 @@ app.post("/api/login", async (req, res) => {
   }
 });
 
-//Admin Promotes a User to Doctor
-app.put(
-  "/api/promote/:id",
-  authenticate,
-  authorizeRoles("Admin"),
-  async (req, res) => {
-    const { id } = req.params;
 
-    try {
-      const result = await pool.query(
-        "UPDATE users SET role = 'Doctor' WHERE id = $1 RETURNING id, email, role",
-        [id]
-      );
-
-      if (result.rowCount === 0) {
-        return res.status(404).json({ error: "User not found" });
-      }
-
-      res.json({ message: "User promoted to Doctor", user: result.rows[0] });
-    } catch (error) {
-      console.error("❌ Error promoting user:", error);
-      res.status(500).json({ error: "Error promoting user" });
-    }
-  }
-);
 
 // Route to submit health questionnaire
 app.post("/api/submit-health-questionnaire", async (req, res) => {
@@ -462,6 +447,18 @@ app.post("/api/submit-health-questionnaire", async (req, res) => {
     ];
 
     const result = await pool.query(insertQuery, values);
+
+    // Audit log for health questionnaire submission
+    logEvent({
+      user_id: null, // Adjust if you have an authenticated user
+      action: "CREATE",
+      entity: "health_questionnaire",
+      entity_id: result.rows[0].id,
+      old_data: null,
+      new_data: result.rows[0],
+      metadata: { endpoint: "POST /api/submit-health-questionnaire" }
+    });
+
     res.json({
       message: "Health questionnaire submitted successfully!",
       questionnaire: result.rows[0],
@@ -629,8 +626,19 @@ app.post("/api/register-family", async (req, res) => {
         primaryMember.address || "",
         familyGroupId,
       ];
-      await pool.query(primaryInsert, primaryValues);
+      const primaryResult = await pool.query(primaryInsert, primaryValues);
       console.log("✅ Primary Member Registered:", primaryMember.email);
+
+      // Audit log for primary member creation
+      logEvent({
+        user_id: null,
+        action: "CREATE",
+        entity: "patient",
+        entity_id: primaryResult.rows[0].id,
+        old_data: null,
+        new_data: primaryResult.rows[0],
+        metadata: { endpoint: "POST /api/register-family - primary" }
+      });
     }
 
     // Insert Family Members
@@ -672,6 +680,19 @@ app.post("/api/register-family", async (req, res) => {
       console.log(
         `✅ Family Member Registered: ${member.firstName} ${member.lastName}`
       );
+
+      const familyResult = await pool.query("SELECT * FROM patients WHERE email = $1;", [member.email]);
+      if (familyResult.rows.length > 0) {
+        logEvent({
+          user_id: null,
+          action: "CREATE",
+          entity: "patient",
+          entity_id: familyResult.rows[0].id,
+          old_data: null,
+          new_data: familyResult.rows[0],
+          metadata: { endpoint: "POST /api/register-family - family" }
+        });
+      }
     }
 
     res.json({
@@ -743,6 +764,9 @@ app.put(
     }
 
     try {
+      const oldDataResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+      const oldData = oldDataResult.rows[0];
+
       const updateQuery = `
         UPDATE patients
         SET first_name = $1, last_name = $2, phone_number = $3, email = $4, address = $5
@@ -757,6 +781,17 @@ app.put(
         console.error("❌ No family member found for ID:", id);
         return res.status(404).json({ error: "Family member not found" });
       }
+
+       // Audit log for family member update
+       logEvent({
+        user_id: req.user.id,
+        action: "UPDATE",
+        entity: "patient",
+        entity_id: id,
+        old_data: oldData,
+        new_data: result.rows[0],
+        metadata: { endpoint: "PUT /api/family-group/update-member/:id" }
+      });
 
       res.json({
         message: "Family member updated successfully!",
@@ -778,12 +813,26 @@ app.delete(
     const { id } = req.params;
 
     try {
+      const oldDataResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+      const oldData = oldDataResult.rows[0];
+
       const deleteQuery = `DELETE FROM patients WHERE id = $1 RETURNING *;`;
       const result = await pool.query(deleteQuery, [id]);
 
       if (result.rowCount === 0) {
         return res.status(404).json({ error: "Family member not found" });
       }
+
+      // Audit log for family member deletion
+      logEvent({
+        user_id: req.user.id,
+        action: "DELETE",
+        entity: "patient",
+        entity_id: id,
+        old_data: oldData,
+        new_data: null,
+        metadata: { endpoint: "DELETE /api/family-group/remove-member/:id" }
+      });
 
       res.json({
         message: "Family member removed successfully",
@@ -796,7 +845,39 @@ app.delete(
   }
 );
 
-//Fetch all Doctors
+
+/**
+ *  ADMIN ENDPOINTS -- Doctor APIS
+ */
+
+
+//Admin Promotes a User to Doctor
+app.put(
+  "/api/promote/:id",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const result = await pool.query(
+        "UPDATE users SET role = 'Doctor' WHERE id = $1 RETURNING id, email, role",
+        [id]
+      );
+
+      if (result.rowCount === 0) {
+        return res.status(404).json({ error: "User not found" });
+      }
+
+      res.json({ message: "User promoted to Doctor", user: result.rows[0] });
+    } catch (error) {
+      console.error("❌ Error promoting user:", error);
+      res.status(500).json({ error: "Error promoting user" });
+    }
+  }
+);
+
+//  Fetch/Read all Doctors
 app.get(
   "/api/doctors",
   authenticate,
@@ -820,7 +901,7 @@ app.get(
   }
 );
 
-//Add a doctor
+//  Add/Create a doctor
 app.post(
   "/api/doctors",
   authenticate,
@@ -862,6 +943,19 @@ app.post(
       );
 
       console.log("✅ Doctor added successfully:", result.rows[0]);
+
+       // Audit log for doctor creation
+       logEvent({
+        user_id: req.user.id,
+        action: "CREATE",
+        entity: "doctor",
+        entity_id: result.rows[0].id,
+        old_data: null,
+        new_data: result.rows[0],
+        metadata: { endpoint: "POST /api/doctors" }
+      });
+
+
       res.status(201).json({
         message: "Doctor added successfully!",
         doctor: result.rows[0],
@@ -873,7 +967,7 @@ app.post(
   }
 );
 
-//Fetch patients assigned to a doctor
+// Fetch patients assigned to a doctor
 app.get(
   "/api/doctors/:doctorId/patients",
   authenticate,
@@ -893,7 +987,7 @@ app.get(
   }
 );
 
-//Edit Doctor Details
+// Update Doctor Details
 app.put(
   "/api/doctors/:id",
   authenticate,
@@ -932,6 +1026,18 @@ app.put(
       }
 
       console.log("✅ Doctor updated successfully in DB:", result.rows[0]); // Debugging
+      
+      // Audit log for doctor update
+      logEvent({
+        user_id: req.user.id,
+        action: "UPDATE",
+        entity: "doctor",
+        entity_id: id,
+        old_data: existingDoctor.rows[0],
+        new_data: result.rows[0],
+        metadata: { endpoint: "PUT /api/doctors/:id" }
+      });
+      
       res.json({
         message: "Doctor updated successfully",
         doctor: result.rows[0],
@@ -943,7 +1049,7 @@ app.put(
   }
 );
 
-//Remove a doctor
+// Remove a doctor
 app.delete(
   "/api/doctors/:id",
   authenticate,
@@ -977,7 +1083,19 @@ app.delete(
         return res.status(500).json({ error: "Failed to delete doctor." });
       }
 
+      // Audit log for doctor update
+      logEvent({
+        user_id: req.user.id,
+        action: "DELETE",
+        entity: "doctor",
+        entity_id: id,
+        old_data: existingDoctor.rows[0],
+        new_data: null,
+        metadata: { endpoint: "DELETE /api/doctors/:id" }
+      });
+
       console.log("✅ Doctor deleted successfully:", result.rows[0]);
+
       res.json({
         message: "Doctor deleted successfully",
         doctor: result.rows[0],
