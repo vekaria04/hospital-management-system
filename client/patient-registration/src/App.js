@@ -4,6 +4,7 @@ import {
   Routes,
   Route,
   Navigate,
+  Link,
 } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
 
@@ -18,12 +19,14 @@ import Login from "./Auth/Login";
 import AdminDashboard from "./Dashboards/adminDash";
 import DoctorDashboard from "./Dashboards/doctorDash";
 
-// Simple Header Component
+// Updated Header Component with clickable banner
 const Header = () => {
   return (
-    <div className="bg-blue-600 p-4 text-center text-white text-xl font-bold">
-      Hospital System
-    </div>
+    <Link to="/" className="no-underline">
+      <div className="bg-blue-600 p-4 text-center text-white text-xl font-bold cursor-pointer">
+        Hospital System
+      </div>
+    </Link>
   );
 };
 
@@ -60,7 +63,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 const App = () => {
   return (
     <Router>
-      <Header /> {/* ✅ Displays "Hospital System" at the top */}
+      <Header /> {/* Clickable header navigates to "/" */}
       <Routes>
         {/* Public Route: Login */}
         <Route path="/login" element={<Login />} />

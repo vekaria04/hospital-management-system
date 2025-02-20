@@ -27,9 +27,9 @@ pool
   .then(() => console.log("Connected to YugabyteDB"))
   .catch((err) => console.error("YugabyteDB connection error:", err));
 
-  const createTables = async () => {
-    try {
-      await pool.query(`
+const createTables = async () => {
+  try {
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS users (
             id SERIAL PRIMARY KEY,
             first_name VARCHAR(255) NOT NULL,
@@ -41,14 +41,14 @@ pool
             verification_token TEXT
         );
       `);
-  
-      await pool.query(`
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS family_groups (
             id SERIAL PRIMARY KEY
         );
       `);
-  
-      await pool.query(`
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS doctors (
             id SERIAL PRIMARY KEY,
             first_name VARCHAR(255) NOT NULL,
@@ -56,12 +56,12 @@ pool
             email VARCHAR(255) UNIQUE NOT NULL,
             phone_number VARCHAR(255),
             specialty VARCHAR(255),
+            password VARCHAR(255) NOT NULL,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
 
-      
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS patients (
             id SERIAL PRIMARY KEY,
             first_name VARCHAR(255) NOT NULL,
@@ -75,8 +75,8 @@ pool
             assigned_doctor_id INT REFERENCES doctors(id) ON DELETE SET NULL
         );
       `);
-  
-      await pool.query(`
+
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS health_questionnaires (
             id SERIAL PRIMARY KEY,
             patient_id INT REFERENCES patients(id) ON DELETE CASCADE,
@@ -103,9 +103,9 @@ pool
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
-  
-      // Create default Admin user
-      await pool.query(`
+
+    // Create default Admin user
+    await pool.query(`
         INSERT INTO users (first_name, last_name, email, password, role, is_verified)
         VALUES ('Admin', 'User', 'dnagpal2@uwo.com', '${await bcrypt.hash(
           "pass",
@@ -113,13 +113,21 @@ pool
         )}', 'Admin', TRUE)
         ON CONFLICT (email) DO NOTHING;
       `);
-  
-      console.log("✅ Tables are ready.");
-    } catch (err) {
-      console.error("❌ Error creating tables:", err);
-    }
-  };
-  
+    await pool.query(`
+      INSERT INTO users (first_name, last_name, email, password, role, is_verified)
+      VALUES ('Volunteer', 'User', 'volunteer@v.com', '${await bcrypt.hash(
+        "volunteer",
+        10
+      )}', 'Volunteer', TRUE)
+      ON CONFLICT (email) DO NOTHING;
+    `);
+
+    console.log("✅ Tables are ready.");
+  } catch (err) {
+    console.error("❌ Error creating tables:", err);
+  }
+};
+
 createTables();
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.split(" ")[1];
@@ -245,10 +253,14 @@ app.post("/api/login", async (req, res) => {
 
   try {
     // ✅ Check if user exists (Search in both users and doctors table)
-    let user = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+    let user = await pool.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
 
     if (user.rows.length === 0) {
-      user = await pool.query("SELECT * FROM doctors WHERE email = $1", [email]);
+      user = await pool.query("SELECT * FROM doctors WHERE email = $1", [
+        email,
+      ]);
     }
 
     if (user.rows.length === 0) {
@@ -272,7 +284,6 @@ app.post("/api/login", async (req, res) => {
     );
 
     res.json({ message: "Login successful", token, role });
-
   } catch (error) {
     console.error("❌ Login error:", error);
     res.status(500).json({ error: "Error logging in" });
@@ -707,155 +718,197 @@ app.delete(
 );
 
 //Fetch all Doctors
-app.get("/api/doctors", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  try {
-    // ✅ Fetch all doctors
-    const result = await pool.query("SELECT * FROM doctors ORDER BY id ASC");
+app.get(
+  "/api/doctors",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    try {
+      // ✅ Fetch all doctors
+      const result = await pool.query("SELECT * FROM doctors ORDER BY id ASC");
 
-    if (result.rows.length === 0) {
-      console.warn("⚠️ No doctors found in the database.");
-      return res.status(200).json([]); // Return an empty array if no doctors exist
+      if (result.rows.length === 0) {
+        console.warn("⚠️ No doctors found in the database.");
+        return res.status(200).json([]); // Return an empty array if no doctors exist
+      }
+
+      console.log("✅ Doctors retrieved from database:", result.rows);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("❌ Error fetching doctors:", error);
+      res.status(500).json({ error: "Failed to fetch doctors." });
     }
-
-    console.log("✅ Doctors retrieved from database:", result.rows);
-    res.json(result.rows);
-  } catch (error) {
-    console.error("❌ Error fetching doctors:", error);
-    res.status(500).json({ error: "Failed to fetch doctors." });
   }
-});
-
+);
 
 //Add a doctor
-app.post("/api/doctors", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { firstName, lastName, email, phoneNumber, specialty, password } = req.body;
+app.post(
+  "/api/doctors",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { firstName, lastName, email, phoneNumber, specialty, password } =
+      req.body;
 
-  console.log("🔹 Received doctor registration request:", req.body); // Debugging
+    console.log("🔹 Received doctor registration request:", req.body); // Debugging
 
-  if (!firstName || !lastName || !email || !specialty || !password) {
-    console.error("❌ Missing required fields");
-    return res.status(400).json({ error: "All fields, including password, are required." });
-  }
-
-  try {
-    // ✅ Check if email already exists
-    const existingDoctor = await pool.query("SELECT * FROM doctors WHERE email = $1", [email]);
-    if (existingDoctor.rows.length > 0) {
-      console.warn(`⚠️ Doctor with email ${email} already exists.`);
-      return res.status(409).json({ error: "Doctor with this email already exists." });
+    if (!firstName || !lastName || !email || !specialty || !password) {
+      console.error("❌ Missing required fields");
+      return res
+        .status(400)
+        .json({ error: "All fields, including password, are required." });
     }
 
-    // ✅ Hash the password before saving it
-    const hashedPassword = await bcrypt.hash(password, 10);
+    try {
+      // ✅ Check if email already exists
+      const existingDoctor = await pool.query(
+        "SELECT * FROM doctors WHERE email = $1",
+        [email]
+      );
+      if (existingDoctor.rows.length > 0) {
+        console.warn(`⚠️ Doctor with email ${email} already exists.`);
+        return res
+          .status(409)
+          .json({ error: "Doctor with this email already exists." });
+      }
 
-    // ✅ Insert doctor with encrypted password
-    const result = await pool.query(
-      `INSERT INTO doctors (first_name, last_name, email, phone_number, specialty, password)
+      // ✅ Hash the password before saving it
+      const hashedPassword = await bcrypt.hash(password, 10);
+
+      // ✅ Insert doctor with encrypted password
+      const result = await pool.query(
+        `INSERT INTO doctors (first_name, last_name, email, phone_number, specialty, password)
        VALUES ($1, $2, $3, $4, $5, $6) RETURNING *;`,
-      [firstName, lastName, email, phoneNumber, specialty, hashedPassword]
-    );
+        [firstName, lastName, email, phoneNumber, specialty, hashedPassword]
+      );
 
-    console.log("✅ Doctor added successfully:", result.rows[0]);
-    res.status(201).json({ message: "Doctor added successfully!", doctor: result.rows[0] });
-
-  } catch (error) {
-    console.error("❌ Error adding doctor:", error);
-    res.status(500).json({ error: "Failed to add doctor." });
+      console.log("✅ Doctor added successfully:", result.rows[0]);
+      res.status(201).json({
+        message: "Doctor added successfully!",
+        doctor: result.rows[0],
+      });
+    } catch (error) {
+      console.error("❌ Error adding doctor:", error);
+      res.status(500).json({ error: "Failed to add doctor." });
+    }
   }
-});
-
-
+);
 
 //Fetch patients assigned to a doctor
-app.get("/api/doctors/:doctorId/patients", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { doctorId } = req.params;
-  try {
-    const result = await pool.query(
-      "SELECT id, first_name, last_name, email FROM patients WHERE assigned_doctor_id = $1",
-      [doctorId]
-    );
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching doctor’s patients:", error);
-    res.status(500).json({ error: "Failed to fetch patients" });
+app.get(
+  "/api/doctors/:doctorId/patients",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { doctorId } = req.params;
+    try {
+      const result = await pool.query(
+        "SELECT id, first_name, last_name, email FROM patients WHERE assigned_doctor_id = $1",
+        [doctorId]
+      );
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching doctor’s patients:", error);
+      res.status(500).json({ error: "Failed to fetch patients" });
+    }
   }
-});
+);
 
 //Edit Doctor Details
-app.put("/api/doctors/:id", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { id } = req.params;
-  const { firstName, lastName, email, phoneNumber, specialty } = req.body;
+app.put(
+  "/api/doctors/:id",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { id } = req.params;
+    const { firstName, lastName, email, phoneNumber, specialty } = req.body;
 
-  console.log(`🔹 Update request received for doctor ID: ${id}`, req.body); // Debugging
+    console.log(`🔹 Update request received for doctor ID: ${id}`, req.body); // Debugging
 
-  try {
-    // ✅ Check if the doctor exists
-    const existingDoctor = await pool.query("SELECT * FROM doctors WHERE id = $1", [id]);
-    if (existingDoctor.rows.length === 0) {
-      console.warn(`⚠️ No doctor found with ID: ${id}`);
-      return res.status(404).json({ error: "Doctor not found." });
-    }
+    try {
+      // ✅ Check if the doctor exists
+      const existingDoctor = await pool.query(
+        "SELECT * FROM doctors WHERE id = $1",
+        [id]
+      );
+      if (existingDoctor.rows.length === 0) {
+        console.warn(`⚠️ No doctor found with ID: ${id}`);
+        return res.status(404).json({ error: "Doctor not found." });
+      }
 
-    console.log("🔍 Before Update: Doctor Data:", existingDoctor.rows[0]); // Debugging
+      console.log("🔍 Before Update: Doctor Data:", existingDoctor.rows[0]); // Debugging
 
-    // ✅ Update the doctor's details
-    const result = await pool.query(
-      `UPDATE doctors 
+      // ✅ Update the doctor's details
+      const result = await pool.query(
+        `UPDATE doctors 
        SET first_name = $1, last_name = $2, email = $3, phone_number = $4, specialty = $5
        WHERE id = $6 
        RETURNING *;`,
-      [firstName, lastName, email, phoneNumber, specialty, id]
-    );
+        [firstName, lastName, email, phoneNumber, specialty, id]
+      );
 
-    if (result.rowCount === 0) {
-      console.error("❌ Update failed. No rows affected.");
-      return res.status(500).json({ error: "Update failed." });
+      if (result.rowCount === 0) {
+        console.error("❌ Update failed. No rows affected.");
+        return res.status(500).json({ error: "Update failed." });
+      }
+
+      console.log("✅ Doctor updated successfully in DB:", result.rows[0]); // Debugging
+      res.json({
+        message: "Doctor updated successfully",
+        doctor: result.rows[0],
+      });
+    } catch (error) {
+      console.error("❌ Error updating doctor:", error);
+      res.status(500).json({ error: "Failed to update doctor." });
     }
-
-    console.log("✅ Doctor updated successfully in DB:", result.rows[0]); // Debugging
-    res.json({ message: "Doctor updated successfully", doctor: result.rows[0] });
-
-  } catch (error) {
-    console.error("❌ Error updating doctor:", error);
-    res.status(500).json({ error: "Failed to update doctor." });
   }
-});
-
-
+);
 
 //Remove a doctor
-app.delete("/api/doctors/:id", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { id } = req.params;
+app.delete(
+  "/api/doctors/:id",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { id } = req.params;
 
-  console.log(`🗑️ Delete request received for doctor ID: ${id}`); // Debugging
+    console.log(`🗑️ Delete request received for doctor ID: ${id}`); // Debugging
 
-  try {
-    // ✅ Check if the doctor exists before deleting
-    const existingDoctor = await pool.query("SELECT * FROM doctors WHERE id = $1", [id]);
-    if (existingDoctor.rows.length === 0) {
-      console.warn(`⚠️ No doctor found with ID: ${id}`);
-      return res.status(404).json({ error: "Doctor not found." });
+    try {
+      // ✅ Check if the doctor exists before deleting
+      const existingDoctor = await pool.query(
+        "SELECT * FROM doctors WHERE id = $1",
+        [id]
+      );
+      if (existingDoctor.rows.length === 0) {
+        console.warn(`⚠️ No doctor found with ID: ${id}`);
+        return res.status(404).json({ error: "Doctor not found." });
+      }
+
+      console.log("🔍 Doctor found. Proceeding with deletion...");
+
+      // ✅ Delete the doctor
+      const result = await pool.query(
+        "DELETE FROM doctors WHERE id = $1 RETURNING *;",
+        [id]
+      );
+
+      if (result.rowCount === 0) {
+        console.error("❌ Deletion failed. No rows affected.");
+        return res.status(500).json({ error: "Failed to delete doctor." });
+      }
+
+      console.log("✅ Doctor deleted successfully:", result.rows[0]);
+      res.json({
+        message: "Doctor deleted successfully",
+        doctor: result.rows[0],
+      });
+    } catch (error) {
+      console.error("❌ Error deleting doctor:", error);
+      res.status(500).json({ error: "Failed to delete doctor." });
     }
-
-    console.log("🔍 Doctor found. Proceeding with deletion...");
-
-    // ✅ Delete the doctor
-    const result = await pool.query("DELETE FROM doctors WHERE id = $1 RETURNING *;", [id]);
-
-    if (result.rowCount === 0) {
-      console.error("❌ Deletion failed. No rows affected.");
-      return res.status(500).json({ error: "Failed to delete doctor." });
-    }
-
-    console.log("✅ Doctor deleted successfully:", result.rows[0]);
-    res.json({ message: "Doctor deleted successfully", doctor: result.rows[0] });
-
-  } catch (error) {
-    console.error("❌ Error deleting doctor:", error);
-    res.status(500).json({ error: "Failed to delete doctor." });
   }
-});
-
+);
 
 const port = 3000;
 app.listen(port, () => console.log(`Listening on port ${port}...`));
