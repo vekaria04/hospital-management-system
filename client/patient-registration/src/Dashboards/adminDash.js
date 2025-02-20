@@ -145,6 +145,29 @@ const AdminDashboard = () => {
   };
   
 
+  // New state for audit logs
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [showLogs, setShowLogs] = useState(false);
+
+  // Function to fetch audit logs
+  const fetchAuditLogs = () => {
+    const token = localStorage.getItem("token");
+    fetch("/api/audit-logs", {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((res) => res.json())
+      .then((data) => setAuditLogs(data))
+      .catch((err) => console.error("❌ Error fetching audit logs:", err));
+  };
+
+  // Toggle the audit log view
+  const toggleAuditLogs = () => {
+    if (!showLogs) {
+      fetchAuditLogs();
+    }
+    setShowLogs(!showLogs);
+  };
+
   return (
     <div className="min-h-screen flex flex-col items-center bg-gray-100 p-4">
       <h1 className="text-4xl font-bold mb-4">Admin Dashboard</h1>
@@ -186,6 +209,40 @@ const AdminDashboard = () => {
           <button onClick={handleSaveEdit} className="bg-green-500 text-white px-4 py-2 rounded">Save</button>
         </div>
       )}
+      
+      {/* Audit Logs Section at the bottom */}
+      <div className="w-full max-w-2xl bg-white p-4 rounded shadow mt-6">
+        <button onClick={toggleAuditLogs} className="bg-purple-500 text-white px-4 py-2 rounded mb-4">
+          {showLogs ? "Hide Audit Logs" : "Show Audit Logs"}
+        </button>
+
+        {showLogs && (
+          <div>
+            <h2 className="text-2xl font-semibold mb-2">Audit Logs</h2>
+            <ul className="overflow-y-scroll h-64">
+              {auditLogs.map((log) => (
+                <li key={log.id} className="p-2 border-b">
+                  <p>
+                    <strong>Timestamp:</strong> {new Date(log.created_at).toLocaleString()}
+                  </p>
+                  <p>
+                    <strong>User:</strong> {log.user_name || "N/A"}
+                  </p>
+                  <p>
+                    <strong>Action:</strong> {log.action}
+                  </p>
+                  <p>
+                    <strong>Entity:</strong> {log.entity} (ID: {log.entity_id})
+                  </p>
+                  <p>
+                    <strong>Metadata:</strong> {JSON.stringify(log.metadata)}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

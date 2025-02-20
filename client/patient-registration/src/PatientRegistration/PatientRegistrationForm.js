@@ -6,6 +6,7 @@ import {
   useNavigate,
 } from "react-router-dom";
 
+
 const PatientRegistrationForm = () => {
   const [formData, setFormData] = useState({
     firstName: "",
@@ -81,7 +82,10 @@ const PatientRegistrationForm = () => {
           `/api/update-patient/${existingPatientId}`,
           {
             method: "PUT",
-            headers: { "Content-Type": "application/json" },
+            headers: { 
+              "Content-Type": "application/json", 
+              "Authorization": `Bearer ${localStorage.getItem("token")}`
+            },
             body: JSON.stringify(formData),
           }
         );
@@ -98,7 +102,7 @@ const PatientRegistrationForm = () => {
         // Otherwise, register a new patient
         const response = await fetch("/api/register-patient", {
           method: "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { "Content-Type": "application/json"},
           body: JSON.stringify(formData),
         });
 
