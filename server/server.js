@@ -49,6 +49,19 @@ pool
       `);
   
       await pool.query(`
+        CREATE TABLE IF NOT EXISTS doctors (
+            id SERIAL PRIMARY KEY,
+            first_name VARCHAR(255) NOT NULL,
+            last_name VARCHAR(255) NOT NULL,
+            email VARCHAR(255) UNIQUE NOT NULL,
+            phone_number VARCHAR(255),
+            specialty VARCHAR(255),
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
+      `);
+
+      
+      await pool.query(`
         CREATE TABLE IF NOT EXISTS patients (
             id SERIAL PRIMARY KEY,
             first_name VARCHAR(255) NOT NULL,
@@ -60,18 +73,6 @@ pool
             address VARCHAR(255),
             family_group_id INT REFERENCES family_groups(id) ON DELETE SET NULL,
             assigned_doctor_id INT REFERENCES doctors(id) ON DELETE SET NULL
-        );
-      `);
-  
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS doctors (
-            id SERIAL PRIMARY KEY,
-            first_name VARCHAR(255) NOT NULL,
-            last_name VARCHAR(255) NOT NULL,
-            email VARCHAR(255) UNIQUE NOT NULL,
-            phone_number VARCHAR(255),
-            specialty VARCHAR(255),
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         );
       `);
   
