@@ -76,6 +76,20 @@ const createTables = async () => {
         );
       `);
 
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS audit_logs (
+          id SERIAL PRIMARY KEY,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          user_id INT,                 -- ID of the user performing the action
+          action VARCHAR(50) NOT NULL, -- e.g., 'CREATE', 'UPDATE', 'DELETE'
+          entity VARCHAR(50) NOT NULL, -- e.g., 'patient', 'doctor'
+          entity_id INT NOT NULL,      -- The ID of the affected record
+          old_data JSONB,              -- JSON snapshot before change (if applicable)
+          new_data JSONB,              -- JSON snapshot after change (if applicable)
+          metadata JSONB               -- Additional context (e.g., IP address, session info)
+        );
+      `);      
+
     await pool.query(`
         CREATE TABLE IF NOT EXISTS health_questionnaires (
             id SERIAL PRIMARY KEY,
@@ -129,6 +143,42 @@ const createTables = async () => {
 };
 
 createTables();
+
+/** EVENT LOG FUNCTION FOR ADMIN DASHBOARD -- Logs an audit event to the audit_logs table.
+ * 
+ *  @param {Object} params - The parameters for the audit event.
+ *  @param {number} [params.user_id] - ID of the user performing the action (optional).
+ *  @param {string} params.action - Type of action (e.g., "CREATE", "UPDATE", "DELETE").
+ *  @param {string} params.entity - The entity affected (e.g., "patient", "doctor").
+ *  @param {number} params.entity_id - The ID of the affected record.
+ *  @param {Object|null} [params.old_data] - Snapshot of the record before the change.
+ *  @param {Object|null} [params.new_data] - Snapshot of the record after the change.
+ *  @param {Object|null} [params.metadata] - Additional context (e.g., IP address, session info).
+ */
+async function logEvent({
+  user_id = null,
+  action,
+  entity,
+  entity_id,
+  old_data = null,
+  new_data = null,
+  metadata = null,
+}) {
+  try {
+    const query = `
+      INSERT INTO audit_logs (user_id, action, entity, entity_id, old_data, new_data, metadata)
+      VALUES ($1, $2, $3, $4, $5, $6, $7)
+    `;
+    const values = [user_id, action, entity, entity_id, old_data, new_data, metadata];
+    await pool.query(query, values);
+    console.log(`Audit log recorded: ${action} on ${entity} with ID ${entity_id}`);
+  } catch (error) {
+    console.error("Error recording audit log:", error);
+    // Error in logging shouldn't block main operations.
+  }
+}
+
+
 const authenticate = (req, res, next) => {
   const token = req.header("Authorization")?.split(" ")[1];
   if (!token) return res.status(401).json({ error: "Access Denied" });
@@ -141,6 +191,7 @@ const authenticate = (req, res, next) => {
     res.status(400).json({ error: "Invalid Token" });
   }
 };
+
 const authorizeRoles = (...allowedRoles) => {
   return (req, res, next) => {
     if (!allowedRoles.includes(req.user.role)) {
@@ -149,6 +200,8 @@ const authorizeRoles = (...allowedRoles) => {
     next();
   };
 };
+
+// Patient Registration 
 app.post("/api/register-patient", async (req, res) => {
   const { firstName, lastName, gender, age, phoneNumber, email, address } =
     req.body;
@@ -175,6 +228,17 @@ app.post("/api/register-patient", async (req, res) => {
     const result = await pool.query(insertQuery, values);
 
     console.log("🔹 New Patient Created:", result.rows[0]); // Debugging
+
+     // Add audit logging for patient creation
+     logEvent({
+      user_id: null, 
+      action: "CREATE",
+      entity: "patient",
+      entity_id: result.rows[0].id,
+      old_data: null,
+      new_data: result.rows[0],
+      metadata: { endpoint: "register-patient" }
+    });
 
     if (result.rows.length > 0) {
       return res.status(201).json({
@@ -436,10 +500,14 @@ app.put(
   authorizeRoles("Doctor", "Admin"),
   async (req, res) => {
     const { id } = req.params;
-    const { firstName, lastName, gender, age, phoneNumber, email, address } =
-      req.body;
+    const { firstName, lastName, gender, age, phoneNumber, email, address } = req.body;
 
     try {
+
+      // Fetch the current state before the update for audit purposes
+      const oldDataResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+      const oldData = oldDataResult.rows[0];
+
       const updateQuery = `
       UPDATE patients
       SET first_name = $1, last_name = $2, gender = $3, age = $4, phone_number = $5, email = $6, address = $7
@@ -460,6 +528,17 @@ app.put(
       if (result.rowCount === 0) {
         return res.status(404).json({ error: "Patient not found" });
       }
+
+      // audit logging for patient update
+      logEvent({
+        user_id: req.user.id, // Authenticated user performing the update
+        action: "UPDATE",
+        entity: "patient",
+        entity_id: id,
+        old_data: oldData,
+        new_data: result.rows[0],
+        metadata: { endpoint: "update-patient" }
+      });
 
       res.json({
         message: "Patient updated successfully!",
