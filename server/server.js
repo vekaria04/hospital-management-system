@@ -125,10 +125,17 @@ const createTables = async () => {
     // Create default Admin user
     await pool.query(`
         INSERT INTO users (first_name, last_name, email, password, role, is_verified)
+<<<<<<< HEAD
         VALUES ('Admin', 'User', 'dnagpal2@uwo.com', '${await bcrypt.hash(
       "pass",
       10
     )}', 'Admin', TRUE)
+=======
+        VALUES ('Admin', 'User', 'admin@email.com', '${await bcrypt.hash(
+          "pass",
+          10
+        )}', 'Admin', TRUE)
+>>>>>>> 6a74a6940aa2bb0eefb0619ce8740bf93479cd6a
         ON CONFLICT (email) DO NOTHING;
       `);
     await pool.query(`
@@ -164,9 +171,19 @@ async function logEvent({
       INSERT INTO audit_logs (user_id, action, entity, entity_id, old_data, new_data, metadata)
       VALUES ($1, $2, $3, $4, $5, $6, $7)
     `;
-    const values = [user_id, action, entity, entity_id, old_data, new_data, metadata];
+    const values = [
+      user_id,
+      action,
+      entity,
+      entity_id,
+      old_data,
+      new_data,
+      metadata,
+    ];
     await pool.query(query, values);
-    console.log(`Audit log recorded: ${action} on ${entity} with ID ${entity_id}`);
+    console.log(
+      `Audit log recorded: ${action} on ${entity} with ID ${entity_id}`
+    );
   } catch (error) {
     console.error("Error recording audit log:", error);
     // Error in logging shouldn't block main operations.
@@ -200,23 +217,28 @@ const authorizeRoles = (...allowedRoles) => {
 };
 
 // Get Audit Logs API for Admin Dash
-app.get("/api/audit-logs", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  try {
-    const result = await pool.query(`
+app.get(
+  "/api/audit-logs",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query(`
       SELECT a.*, 
         COALESCE(u.first_name || ' ' || u.last_name, 'N/A') AS user_name
       FROM audit_logs a
       LEFT JOIN users u ON a.user_id = u.id
       ORDER BY a.created_at DESC;
     `);
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching audit logs:", error);
-    res.status(500).json({ error: "Failed to fetch audit logs" });
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching audit logs:", error);
+      res.status(500).json({ error: "Failed to fetch audit logs" });
+    }
   }
-});
+);
 
-// Patient Registration 
+// Patient Registration
 app.post("/api/register-patient", async (req, res) => {
   const { firstName, lastName, gender, age, phoneNumber, email, address } =
     req.body;
@@ -252,7 +274,7 @@ app.post("/api/register-patient", async (req, res) => {
       entity_id: result.rows[0].id,
       old_data: null,
       new_data: result.rows[0],
-      metadata: { endpoint: "register-patient" }
+      metadata: { endpoint: "register-patient" },
     });
 
     if (result.rows.length > 0) {
@@ -332,7 +354,14 @@ app.post("/api/login", async (req, res) => {
 
   try {
     // Always query the users table
+<<<<<<< HEAD
     const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
+=======
+    const userResult = await pool.query(
+      "SELECT * FROM users WHERE email = $1",
+      [email]
+    );
+>>>>>>> 6a74a6940aa2bb0eefb0619ce8740bf93479cd6a
 
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: "Invalid email or password" });
@@ -451,7 +480,7 @@ app.post("/api/submit-health-questionnaire", async (req, res) => {
       entity_id: result.rows[0].id,
       old_data: null,
       new_data: result.rows[0],
-      metadata: { endpoint: "POST /api/submit-health-questionnaire" }
+      metadata: { endpoint: "POST /api/submit-health-questionnaire" },
     });
 
     res.json({
@@ -492,12 +521,15 @@ app.put(
   authorizeRoles("Doctor", "Admin"),
   async (req, res) => {
     const { id } = req.params;
-    const { firstName, lastName, gender, age, phoneNumber, email, address } = req.body;
+    const { firstName, lastName, gender, age, phoneNumber, email, address } =
+      req.body;
 
     try {
-
       // Fetch the current state before the update for audit purposes
-      const oldDataResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+      const oldDataResult = await pool.query(
+        "SELECT * FROM patients WHERE id = $1",
+        [id]
+      );
       const oldData = oldDataResult.rows[0];
 
       const updateQuery = `
@@ -529,7 +561,7 @@ app.put(
         entity_id: id,
         old_data: oldData,
         new_data: result.rows[0],
-        metadata: { endpoint: "update-patient" }
+        metadata: { endpoint: "update-patient" },
       });
 
       res.json({
@@ -632,7 +664,7 @@ app.post("/api/register-family", async (req, res) => {
         entity_id: primaryResult.rows[0].id,
         old_data: null,
         new_data: primaryResult.rows[0],
-        metadata: { endpoint: "POST /api/register-family - primary" }
+        metadata: { endpoint: "POST /api/register-family - primary" },
       });
     }
 
@@ -676,7 +708,10 @@ app.post("/api/register-family", async (req, res) => {
         `✅ Family Member Registered: ${member.firstName} ${member.lastName}`
       );
 
-      const familyResult = await pool.query("SELECT * FROM patients WHERE email = $1;", [member.email]);
+      const familyResult = await pool.query(
+        "SELECT * FROM patients WHERE email = $1;",
+        [member.email]
+      );
       if (familyResult.rows.length > 0) {
         logEvent({
           user_id: null,
@@ -685,7 +720,7 @@ app.post("/api/register-family", async (req, res) => {
           entity_id: familyResult.rows[0].id,
           old_data: null,
           new_data: familyResult.rows[0],
-          metadata: { endpoint: "POST /api/register-family - family" }
+          metadata: { endpoint: "POST /api/register-family - family" },
         });
       }
     }
@@ -759,7 +794,10 @@ app.put(
     }
 
     try {
-      const oldDataResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+      const oldDataResult = await pool.query(
+        "SELECT * FROM patients WHERE id = $1",
+        [id]
+      );
       const oldData = oldDataResult.rows[0];
 
       const updateQuery = `
@@ -785,7 +823,7 @@ app.put(
         entity_id: id,
         old_data: oldData,
         new_data: result.rows[0],
-        metadata: { endpoint: "PUT /api/family-group/update-member/:id" }
+        metadata: { endpoint: "PUT /api/family-group/update-member/:id" },
       });
 
       res.json({
@@ -808,7 +846,10 @@ app.delete(
     const { id } = req.params;
 
     try {
-      const oldDataResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
+      const oldDataResult = await pool.query(
+        "SELECT * FROM patients WHERE id = $1",
+        [id]
+      );
       const oldData = oldDataResult.rows[0];
 
       const deleteQuery = `DELETE FROM patients WHERE id = $1 RETURNING *;`;
@@ -826,7 +867,7 @@ app.delete(
         entity_id: id,
         old_data: oldData,
         new_data: null,
-        metadata: { endpoint: "DELETE /api/family-group/remove-member/:id" }
+        metadata: { endpoint: "DELETE /api/family-group/remove-member/:id" },
       });
 
       res.json({
@@ -840,11 +881,9 @@ app.delete(
   }
 );
 
-
 /**
  *  ADMIN ENDPOINTS -- Doctor APIS
  */
-
 
 //Admin Promotes a User to Doctor
 app.put(
@@ -897,70 +936,89 @@ app.get(
 );
 
 //  Create Doctor
-app.post("/api/doctors", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  const { firstName, lastName, email, phoneNumber, specialty, password } = req.body;
+app.post(
+  "/api/doctors",
+  authenticate,
+  authorizeRoles("Admin"),
+  async (req, res) => {
+    const { firstName, lastName, email, phoneNumber, specialty, password } =
+      req.body;
 
-  if (!firstName || !lastName || !email || !specialty || !password) {
-    return res.status(400).json({ error: "All fields, including password, are required." });
-  }
-
-  try {
-    // Check if a doctor (or user) with this email already exists in either table
-    const existingUser = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    if (existingUser.rows.length > 0) {
-      return res.status(409).json({ error: "A user with this email already exists." });
+    if (!firstName || !lastName || !email || !specialty || !password) {
+      return res
+        .status(400)
+        .json({ error: "All fields, including password, are required." });
     }
 
-    // Hash the password
-    const hashedPassword = await bcrypt.hash(password, 10);
+    try {
+      // Check if a doctor (or user) with this email already exists in either table
+      const existingUser = await pool.query(
+        "SELECT * FROM users WHERE email = $1",
+        [email]
+      );
+      if (existingUser.rows.length > 0) {
+        return res
+          .status(409)
+          .json({ error: "A user with this email already exists." });
+      }
 
-    // Start transaction
-    await pool.query("BEGIN");
+      // Hash the password
+      const hashedPassword = await bcrypt.hash(password, 10);
 
-    // 1) Insert into `users` with role 'Doctor'
-    const userResult = await pool.query(
-      `INSERT INTO users (first_name, last_name, email, password, role, is_verified)
+      // Start transaction
+      await pool.query("BEGIN");
+
+      // 1) Insert into `users` with role 'Doctor'
+      const userResult = await pool.query(
+        `INSERT INTO users (first_name, last_name, email, password, role, is_verified)
        VALUES ($1, $2, $3, $4, 'Doctor', TRUE)
        RETURNING id;`,
-      [firstName, lastName, email, hashedPassword]
-    );
-    const newUserId = userResult.rows[0].id;
+        [firstName, lastName, email, hashedPassword]
+      );
+      const newUserId = userResult.rows[0].id;
 
-    // 2) Insert into `doctors`, referencing `user_id`
-    const doctorResult = await pool.query(
-      `INSERT INTO doctors (user_id, first_name, last_name, email, phone_number, specialty, password)
+      // 2) Insert into `doctors`, referencing `user_id`
+      const doctorResult = await pool.query(
+        `INSERT INTO doctors (user_id, first_name, last_name, email, phone_number, specialty, password)
        VALUES ($1, $2, $3, $4, $5, $6, $7)
        RETURNING *;`,
-      [newUserId, firstName, lastName, email, phoneNumber, specialty, hashedPassword]
-    );
+        [
+          newUserId,
+          firstName,
+          lastName,
+          email,
+          phoneNumber,
+          specialty,
+          hashedPassword,
+        ]
+      );
 
-    // Commit transaction
-    await pool.query("COMMIT");
+      // Commit transaction
+      await pool.query("COMMIT");
 
-    // Audit log
-    logEvent({
-      user_id: req.user.id, // The Admin performing this creation
-      action: "CREATE",
-      entity: "doctor",
-      entity_id: doctorResult.rows[0].id,
-      old_data: null,
-      new_data: doctorResult.rows[0],
-      metadata: { endpoint: "POST /api/doctors" }
-    });
+      // Audit log
+      logEvent({
+        user_id: req.user.id, // The Admin performing this creation
+        action: "CREATE",
+        entity: "doctor",
+        entity_id: doctorResult.rows[0].id,
+        old_data: null,
+        new_data: doctorResult.rows[0],
+        metadata: { endpoint: "POST /api/doctors" },
+      });
 
-    res.status(201).json({
-      message: "Doctor added successfully!",
-      doctor: doctorResult.rows[0],
-      userId: newUserId
-    });
-  } catch (error) {
-    await pool.query("ROLLBACK");
-    console.error("❌ Error adding doctor:", error);
-    res.status(500).json({ error: "Failed to add doctor." });
+      res.status(201).json({
+        message: "Doctor added successfully!",
+        doctor: doctorResult.rows[0],
+        userId: newUserId,
+      });
+    } catch (error) {
+      await pool.query("ROLLBACK");
+      console.error("❌ Error adding doctor:", error);
+      res.status(500).json({ error: "Failed to add doctor." });
+    }
   }
-});
-
-
+);
 
 // Fetch patients assigned to a doctor
 app.get(
@@ -1030,7 +1088,7 @@ app.put(
         entity_id: id,
         old_data: existingDoctor.rows[0],
         new_data: result.rows[0],
-        metadata: { endpoint: "PUT /api/doctors/:id" }
+        metadata: { endpoint: "PUT /api/doctors/:id" },
       });
 
       res.json({
@@ -1086,7 +1144,7 @@ app.delete(
         entity_id: id,
         old_data: existingDoctor.rows[0],
         new_data: null,
-        metadata: { endpoint: "DELETE /api/doctors/:id" }
+        metadata: { endpoint: "DELETE /api/doctors/:id" },
       });
 
       console.log("✅ Doctor deleted successfully:", result.rows[0]);
@@ -1110,7 +1168,7 @@ app.delete(
 
 /**
  * GET /api/patients
- * 
+ *
  * Returns a list of patients, optionally filtered by query parameters:
  *   - firstName
  *   - lastName
@@ -1121,10 +1179,21 @@ app.delete(
  *
  * Accessible to users with role "Doctor" or "Admin".
  */
-app.get("/api/patients", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
-  const { firstName, lastName, email, phoneNumber, familyGroupId, assignedDoctorId } = req.query;
-  try {
-    const query = `
+app.get(
+  "/api/patients",
+  authenticate,
+  authorizeRoles("Doctor", "Admin"),
+  async (req, res) => {
+    const {
+      firstName,
+      lastName,
+      email,
+      phoneNumber,
+      familyGroupId,
+      assignedDoctorId,
+    } = req.query;
+    try {
+      const query = `
       SELECT * FROM patients
       WHERE 
         ($1::text IS NULL OR first_name ILIKE '%' || $1 || '%')
@@ -1135,21 +1204,22 @@ app.get("/api/patients", authenticate, authorizeRoles("Doctor", "Admin"), async 
         AND ($6::int IS NULL OR assigned_doctor_id = $6)
       ORDER BY id ASC;
     `;
-    const values = [
-      firstName || null,
-      lastName || null,
-      email || null,
-      phoneNumber || null,
-      familyGroupId ? parseInt(familyGroupId) : null,
-      assignedDoctorId ? parseInt(assignedDoctorId) : null,
-    ];
-    const result = await pool.query(query, values);
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching patients:", error);
-    res.status(500).json({ error: "Failed to fetch patients" });
+      const values = [
+        firstName || null,
+        lastName || null,
+        email || null,
+        phoneNumber || null,
+        familyGroupId ? parseInt(familyGroupId) : null,
+        assignedDoctorId ? parseInt(assignedDoctorId) : null,
+      ];
+      const result = await pool.query(query, values);
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching patients:", error);
+      res.status(500).json({ error: "Failed to fetch patients" });
+    }
   }
-});
+);
 
 /**
  * PUT /api/patients/:id/assign-doctor
@@ -1162,55 +1232,66 @@ app.get("/api/patients", authenticate, authorizeRoles("Doctor", "Admin"), async 
  *
  * Accessible to users with role "Doctor" or "Admin".
  */
-app.put("/api/patients/:id/assign-doctor", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
-  const { id } = req.params; // Patient ID from URL
-  const { assignedDoctorId } = req.body; // New doctor assignment
+app.put(
+  "/api/patients/:id/assign-doctor",
+  authenticate,
+  authorizeRoles("Doctor", "Admin"),
+  async (req, res) => {
+    const { id } = req.params; // Patient ID from URL
+    const { assignedDoctorId } = req.body; // New doctor assignment
 
-  if (!assignedDoctorId) {
-    return res.status(400).json({ error: "Assigned doctor ID is required" });
-  }
-
-  try {
-    // Retrieve the current patient record
-    const patientResult = await pool.query("SELECT * FROM patients WHERE id = $1", [id]);
-    if (patientResult.rowCount === 0) {
-      return res.status(404).json({ error: "Patient not found" });
+    if (!assignedDoctorId) {
+      return res.status(400).json({ error: "Assigned doctor ID is required" });
     }
-    const patient = patientResult.rows[0];
-    const oldAssignment = patient.assigned_doctor_id;
 
-    // Update the assigned_doctor_id
-    const updateQuery = `
+    try {
+      // Retrieve the current patient record
+      const patientResult = await pool.query(
+        "SELECT * FROM patients WHERE id = $1",
+        [id]
+      );
+      if (patientResult.rowCount === 0) {
+        return res.status(404).json({ error: "Patient not found" });
+      }
+      const patient = patientResult.rows[0];
+      const oldAssignment = patient.assigned_doctor_id;
+
+      // Update the assigned_doctor_id
+      const updateQuery = `
       UPDATE patients
       SET assigned_doctor_id = $1
       WHERE id = $2
       RETURNING *;
     `;
-    const updateResult = await pool.query(updateQuery, [assignedDoctorId, id]);
-    const updatedPatient = updateResult.rows[0];
+      const updateResult = await pool.query(updateQuery, [
+        assignedDoctorId,
+        id,
+      ]);
+      const updatedPatient = updateResult.rows[0];
 
-    // Log an audit event only if the patient had an existing assignment (non-null) that changed
-    if (oldAssignment !== null && oldAssignment !== assignedDoctorId) {
-      logEvent({
-        user_id: req.user.id, // The doctor/admin performing the update
-        action: "UPDATE",
-        entity: "patient",
-        entity_id: id,
-        old_data: patient,
-        new_data: updatedPatient,
-        metadata: { endpoint: "PUT /api/patients/:id/assign-doctor" }
+      // Log an audit event only if the patient had an existing assignment (non-null) that changed
+      if (oldAssignment !== null && oldAssignment !== assignedDoctorId) {
+        logEvent({
+          user_id: req.user.id, // The doctor/admin performing the update
+          action: "UPDATE",
+          entity: "patient",
+          entity_id: id,
+          old_data: patient,
+          new_data: updatedPatient,
+          metadata: { endpoint: "PUT /api/patients/:id/assign-doctor" },
+        });
+      }
+
+      res.json({
+        message: "Doctor assignment updated successfully",
+        patient: updatedPatient,
       });
+    } catch (error) {
+      console.error("Error updating doctor assignment:", error);
+      res.status(500).json({ error: "Failed to update doctor assignment" });
     }
-
-    res.json({
-      message: "Doctor assignment updated successfully",
-      patient: updatedPatient,
-    });
-  } catch (error) {
-    console.error("Error updating doctor assignment:", error);
-    res.status(500).json({ error: "Failed to update doctor assignment" });
   }
-});
+);
 
 /**
  * GET /api/doctors
@@ -1220,17 +1301,20 @@ app.put("/api/patients/:id/assign-doctor", authenticate, authorizeRoles("Doctor"
  *
  * Accessible to users with role "Doctor" or "Admin".
  */
-app.get("/api/doctorsList", authenticate, authorizeRoles("Doctor", "Admin"), async (req, res) => {
-  try {
-    const result = await pool.query("SELECT * FROM doctors ORDER BY id ASC");
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching doctors:", error);
-    res.status(500).json({ error: "Failed to fetch doctors" });
+app.get(
+  "/api/doctorsList",
+  authenticate,
+  authorizeRoles("Doctor", "Admin"),
+  async (req, res) => {
+    try {
+      const result = await pool.query("SELECT * FROM doctors ORDER BY id ASC");
+      res.json(result.rows);
+    } catch (error) {
+      console.error("Error fetching doctors:", error);
+      res.status(500).json({ error: "Failed to fetch doctors" });
+    }
   }
-});
-
-
+);
 
 const PORT = 3000;
 app.listen(PORT, () => {
