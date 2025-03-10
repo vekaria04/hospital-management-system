@@ -132,9 +132,9 @@ const createTables = async () => {
     )}', 'Admin', TRUE)
 =======
         VALUES ('Admin', 'User', 'admin@email.com', '${await bcrypt.hash(
-          "pass",
-          10
-        )}', 'Admin', TRUE)
+      "pass",
+      10
+    )}', 'Admin', TRUE)
 >>>>>>> 6a74a6940aa2bb0eefb0619ce8740bf93479cd6a
         ON CONFLICT (email) DO NOTHING;
       `);
@@ -354,14 +354,7 @@ app.post("/api/login", async (req, res) => {
 
   try {
     // Always query the users table
-<<<<<<< HEAD
     const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-=======
-    const userResult = await pool.query(
-      "SELECT * FROM users WHERE email = $1",
-      [email]
-    );
->>>>>>> 6a74a6940aa2bb0eefb0619ce8740bf93479cd6a
 
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: "Invalid email or password" });
