@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
@@ -29,7 +29,7 @@ const AdminDashboard = () => {
       return;
     }
 
-    fetch("/api/doctors", {
+    fetch(`${API_BASE_URL}/api/doctors`, {
       headers: { Authorization: `Bearer ${token}` }, // ✅ Include Token
     })
       .then((res) => res.json())
@@ -41,7 +41,7 @@ const AdminDashboard = () => {
   const handleViewPatients = (doctorId) => {
     const token = localStorage.getItem("token");
 
-    fetch(`/api/doctors/${doctorId}/patients`, {
+    fetch(`${API_BASE_URL}/api/doctors/${doctorId}/patients`, {
       headers: { Authorization: `Bearer ${token}` }
     })
       .then((res) => res.json())
@@ -56,7 +56,7 @@ const AdminDashboard = () => {
   const handleAddDoctor = () => {
     const token = localStorage.getItem("token");
 
-    fetch("/api/doctors", {
+    fetch(`${API_BASE_URL}/api/doctors`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",

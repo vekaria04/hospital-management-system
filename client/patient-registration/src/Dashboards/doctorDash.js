@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 const DoctorDashboard = () => {
   const navigate = useNavigate();
   const [filters, setFilters] = useState({
@@ -29,7 +29,7 @@ const DoctorDashboard = () => {
       if (filters.familyGroupId) params.append("familyGroupId", filters.familyGroupId);
       if (filters.assignedDoctorId) params.append("assignedDoctorId", filters.assignedDoctorId);
 
-      const response = await fetch(`/api/patients?${params.toString()}`, {
+      const response = await fetch(`${API_BASE_URL}/api/patients?${params.toString()}`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`
         }
@@ -49,7 +49,7 @@ const DoctorDashboard = () => {
   const fetchDoctors = async () => {
     try {
       console.log("Token:", localStorage.getItem("token"));
-      const response = await fetch("/api/doctorsList", {
+      const response = await fetch(`${API_BASE_URL}/api/doctorsList`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`
         }
@@ -112,7 +112,7 @@ const DoctorDashboard = () => {
     if (!selectedPatient) return;
     try {
       const response = await fetch(
-        `/api/patients/${selectedPatient.id}/assign-doctor`,
+        `${API_BASE_URL}/api/patients/${selectedPatient.id}/assign-doctor`,
         {
           method: "PUT",
           headers: {

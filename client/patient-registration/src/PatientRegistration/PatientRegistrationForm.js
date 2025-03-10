@@ -5,7 +5,7 @@ import {
   Routes,
   useNavigate,
 } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 
 const PatientRegistrationForm = () => {
   const [formData, setFormData] = useState({
@@ -27,7 +27,7 @@ const PatientRegistrationForm = () => {
 
   const handleFetchData = async () => {
     try {
-      const response = await fetch(`/api/returning-patient/${email}`);
+      const response = await fetch(`${API_BASE_URL}/api/returning-patient/${email}`);
       if (response.ok) {
         const data = await response.json();
         setFormData({
@@ -79,11 +79,11 @@ const PatientRegistrationForm = () => {
       if (existingPatientId) {
         // If patient exists, update record
         const response = await fetch(
-          `/api/update-patient/${existingPatientId}`,
+          `${API_BASE_URL}/api/update-patient/${existingPatientId}`,
           {
             method: "PUT",
-            headers: { 
-              "Content-Type": "application/json", 
+            headers: {
+              "Content-Type": "application/json",
               "Authorization": `Bearer ${localStorage.getItem("token")}`
             },
             body: JSON.stringify(formData),
@@ -100,9 +100,9 @@ const PatientRegistrationForm = () => {
         }
       } else {
         // Otherwise, register a new patient
-        const response = await fetch("/api/register-patient", {
+        const response = await fetch(`${API_BASE_URL}/api/register-patient`, {
           method: "POST",
-          headers: { "Content-Type": "application/json"},
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify(formData),
         });
 
@@ -120,7 +120,7 @@ const PatientRegistrationForm = () => {
             email: "",
             address: "",
           });
-          navigate(`/health-questionnaire/${data.patient.id}`);
+          navigate(`${API_BASE_URL}/health-questionnaire/${data.patient.id}`);
         } else {
           alert("Unexpected response from server. Please try again.");
           console.error("Unexpected response:", data);

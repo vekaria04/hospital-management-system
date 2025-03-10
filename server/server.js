@@ -2,7 +2,7 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const { Pool } = require("pg");
 require("dotenv").config();
-const bcrypt = require("bcrypt");
+const bcrypt = require('bcryptjs');
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
@@ -20,6 +20,9 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
+  ssl: {
+    rejectUnauthorized: false,
+  },
 });
 
 pool
@@ -77,7 +80,7 @@ const createTables = async () => {
         );
       `);
 
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS audit_logs (
           id SERIAL PRIMARY KEY,
           created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -89,7 +92,7 @@ const createTables = async () => {
           new_data JSONB,              -- JSON snapshot after change (if applicable)
           metadata JSONB               -- Additional context (e.g., IP address, session info)
         );
-      `);      
+      `);
 
     await pool.query(`
         CREATE TABLE IF NOT EXISTS health_questionnaires (
@@ -123,17 +126,17 @@ const createTables = async () => {
     await pool.query(`
         INSERT INTO users (first_name, last_name, email, password, role, is_verified)
         VALUES ('Admin', 'User', 'dnagpal2@uwo.com', '${await bcrypt.hash(
-          "pass",
-          10
-        )}', 'Admin', TRUE)
+      "pass",
+      10
+    )}', 'Admin', TRUE)
         ON CONFLICT (email) DO NOTHING;
       `);
     await pool.query(`
       INSERT INTO users (first_name, last_name, email, password, role, is_verified)
       VALUES ('Volunteer', 'User', 'volunteer@v.com', '${await bcrypt.hash(
-        "volunteer",
-        10
-      )}', 'Volunteer', TRUE)
+      "volunteer",
+      10
+    )}', 'Volunteer', TRUE)
       ON CONFLICT (email) DO NOTHING;
     `);
 
@@ -241,9 +244,9 @@ app.post("/api/register-patient", async (req, res) => {
 
     console.log("🔹 New Patient Created:", result.rows[0]); // Debugging
 
-     // Add audit logging for patient creation
-     logEvent({
-      user_id: null, 
+    // Add audit logging for patient creation
+    logEvent({
+      user_id: null,
       action: "CREATE",
       entity: "patient",
       entity_id: result.rows[0].id,
@@ -330,7 +333,7 @@ app.post("/api/login", async (req, res) => {
   try {
     // Always query the users table
     const userResult = await pool.query("SELECT * FROM users WHERE email = $1", [email]);
-    
+
     if (userResult.rows.length === 0) {
       return res.status(401).json({ error: "Invalid email or password" });
     }
@@ -774,8 +777,8 @@ app.put(
         return res.status(404).json({ error: "Family member not found" });
       }
 
-       // Audit log for family member update
-       logEvent({
+      // Audit log for family member update
+      logEvent({
         user_id: req.user.id,
         action: "UPDATE",
         entity: "patient",
@@ -1018,7 +1021,7 @@ app.put(
       }
 
       console.log("✅ Doctor updated successfully in DB:", result.rows[0]); // Debugging
-      
+
       // Audit log for doctor update
       logEvent({
         user_id: req.user.id,
@@ -1029,7 +1032,7 @@ app.put(
         new_data: result.rows[0],
         metadata: { endpoint: "PUT /api/doctors/:id" }
       });
-      
+
       res.json({
         message: "Doctor updated successfully",
         doctor: result.rows[0],
@@ -1229,5 +1232,8 @@ app.get("/api/doctorsList", authenticate, authorizeRoles("Doctor", "Admin"), asy
 
 
 
-const port = 3000;
-app.listen(port, () => console.log(`Listening on port ${port}...`));
+const PORT = 3000;
+app.listen(PORT, () => {
+  console.log(`✅ Server is running on port ${PORT}`);
+});
+

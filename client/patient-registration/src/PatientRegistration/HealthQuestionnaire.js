@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 const HealthQuestionnaire = () => {
   const navigate = useNavigate();
   const { patientId } = useParams();
@@ -55,7 +55,7 @@ const HealthQuestionnaire = () => {
     if (!validateForm()) return;
 
     try {
-      const response = await fetch("/api/submit-health-questionnaire", {
+      const response = await fetch(`${API_BASE_URL}/api/submit-health-questionnaire`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...formData, patientId }),

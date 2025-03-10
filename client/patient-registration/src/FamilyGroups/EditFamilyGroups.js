@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 const EditFamilyGroups = () => {
   const [email, setEmail] = useState("");
   const [familyGroup, setFamilyGroup] = useState(null);
@@ -13,7 +13,7 @@ const EditFamilyGroups = () => {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`/api/family-group/${email}`, {
+      const response = await fetch(`${API_BASE_URL}/api/family-group/${email}`, {
         method: "GET",
       });
 
@@ -59,7 +59,7 @@ const EditFamilyGroups = () => {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`/api/family-group/remove-member/${id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/family-group/remove-member/${id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${token}`,
@@ -101,7 +101,7 @@ const EditFamilyGroups = () => {
     try {
       const token = localStorage.getItem("token");
       const response = await fetch(
-        `/api/family-group/update-member/${member.id}`,
+        `${API_BASE_URL}/api/family-group/update-member/${member.id}`,
         {
           method: "PUT",
           headers: {

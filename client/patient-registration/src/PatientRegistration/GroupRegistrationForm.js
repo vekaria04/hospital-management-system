@@ -5,7 +5,7 @@ import {
   Routes,
   useNavigate,
 } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 const GroupRegistrationForm = () => {
   const [primaryEmail, setPrimaryEmail] = useState("");
   const [primaryPatient, setPrimaryPatient] = useState(null);
@@ -32,7 +32,7 @@ const GroupRegistrationForm = () => {
     }
 
     try {
-      const response = await fetch(`/api/returning-patient/${primaryEmail}`, {
+      const response = await fetch(`${API_BASE_URL}/api/returning-patient/${primaryEmail}`, {
         method: "GET",
         headers: {
           "Cache-Control": "no-cache",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-
+import API_BASE_URL from "../config";
 const VerifyEmail = () => {
     const { token } = useParams();
     const navigate = useNavigate();
@@ -11,7 +11,7 @@ const VerifyEmail = () => {
     const handleVerification = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/verify/${token}`);
+            const response = await fetch(`${API_BASE_URL}/api/verify/${token}`);
             const data = await response.json();
 
             if (response.ok && data.userId) {
