@@ -13,6 +13,10 @@
           "serviceId": "express-backend-service",
           "region": "us-central1"
         }
+      },
+      {
+        "source": "/**",
+        "destination": "/index.html"
       }
     ]
   }
