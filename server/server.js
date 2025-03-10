@@ -125,17 +125,10 @@ const createTables = async () => {
     // Create default Admin user
     await pool.query(`
         INSERT INTO users (first_name, last_name, email, password, role, is_verified)
-<<<<<<< HEAD
-        VALUES ('Admin', 'User', 'dnagpal2@uwo.com', '${await bcrypt.hash(
-      "pass",
-      10
-    )}', 'Admin', TRUE)
-=======
         VALUES ('Admin', 'User', 'admin@email.com', '${await bcrypt.hash(
       "pass",
       10
     )}', 'Admin', TRUE)
->>>>>>> 6a74a6940aa2bb0eefb0619ce8740bf93479cd6a
         ON CONFLICT (email) DO NOTHING;
       `);
     await pool.query(`
