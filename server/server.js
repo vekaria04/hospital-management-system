@@ -20,9 +20,9 @@ const pool = new Pool({
   database: process.env.DB_NAME,
   password: process.env.DB_PASSWORD,
   port: process.env.DB_PORT,
-  ssl: {
-    rejectUnauthorized: false,
-  },
+  // ssl: {
+  //   rejectUnauthorized: false,
+  // },
 });
 
 pool
@@ -98,28 +98,42 @@ const createTables = async () => {
         CREATE TABLE IF NOT EXISTS health_questionnaires (
             id SERIAL PRIMARY KEY,
             patient_id INT REFERENCES patients(id) ON DELETE CASCADE,
-            allergies TEXT,
-            primary_language VARCHAR(255) NOT NULL,
-            other_primary_language VARCHAR(255),
-            preferred_language VARCHAR(255),
-            other_preferred_language VARCHAR(255),
-            primary_concern TEXT NOT NULL,
-            symptom_duration VARCHAR(255),
-            symptom_triggers TEXT,
-            pain_level INT CHECK (pain_level BETWEEN 1 AND 10) NULL, -- Allow NULL instead of empty string
-            chronic_conditions TEXT,
-            past_surgeries TEXT,
-            medications TEXT,
-            family_history TEXT,
-            diet TEXT,
-            substance_use TEXT,
-            physical_activity TEXT,
-            menstrual_cycle VARCHAR(255),
-            pregnancy_status VARCHAR(50) CHECK (pregnancy_status IN ('Yes', 'No', 'Unknown')),
-            mental_health TEXT,
-            sleep_concerns TEXT,
+            loss_of_vision VARCHAR(10),
+            vision_eye VARCHAR(10),
+            vision_onset VARCHAR(10),
+            vision_pain VARCHAR(10),
+            vision_duration VARCHAR(10),
+            redness VARCHAR(10),
+            redness_eye VARCHAR(10),
+            redness_onset VARCHAR(10),
+            redness_pain VARCHAR(10),
+            redness_duration VARCHAR(10),
+            watering VARCHAR(10),
+            watering_eye VARCHAR(10),
+            watering_onset VARCHAR(10),
+            watering_pain VARCHAR(10),
+            watering_duration VARCHAR(10),
+            discharge_type VARCHAR(10),
+            itching VARCHAR(10),
+            itching_eye VARCHAR(10),
+            itching_duration VARCHAR(10),
+            pain VARCHAR(10),
+            pain_eye VARCHAR(10),
+            pain_onset VARCHAR(10),
+            pain_duration VARCHAR(10),
+            htn VARCHAR(10),
+            dm VARCHAR(10),
+            heart_disease VARCHAR(10),
+            allergy_drops VARCHAR(10),
+            allergy_tablets VARCHAR(10),
+            seasonal_allergies VARCHAR(10),
+            contact_lenses VARCHAR(10),
+            contact_lens_years VARCHAR(10),
+            contact_lens_frequency VARCHAR(10),
+            cataract_or_injury VARCHAR(10),
+            retinal_lasers VARCHAR(10),
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
+            );
       `);
 
     // Create default Admin user
@@ -378,82 +392,42 @@ app.post("/api/login", async (req, res) => {
 // Route to submit health questionnaire
 app.post("/api/submit-health-questionnaire", async (req, res) => {
   let {
-    patientId,
-    allergies,
-    primaryLanguage,
-    preferredLanguage,
-    primaryConcern,
-    symptomDuration,
-    symptomTriggers,
-    painLevel,
-    chronicConditions,
-    pastSurgeries,
-    medications,
-    familyHistory,
-    diet,
-    substanceUse,
-    physicalActivity,
-    menstrualCycle,
-    pregnancyStatus,
-    mentalHealth,
-    sleepConcerns,
+    patientId, lossOfVision, visionEye, visionOnset, visionPain, visionDuration,
+    redness, rednessEye, rednessOnset, rednessPain, rednessDuration,
+    watering, wateringEye, wateringOnset, wateringPain, wateringDuration, dischargeType,
+    itching, itchingEye, itchingDuration,
+    pain, painEye, painOnset, painDuration,
+    htn, dm, heartDisease, allergyDrops, allergyTablets, seasonalAllergies,
+    contactLenses, contactLensYears, contactLensFrequency,
+    cataractOrInjury, retinalLasers
   } = req.body;
-
-  // Convert empty strings to NULL
-  const convertToNull = (value) => (value === "" ? null : value);
-
-  patientId = convertToNull(patientId);
-  allergies = convertToNull(allergies);
-  primaryLanguage = convertToNull(primaryLanguage);
-  preferredLanguage = convertToNull(preferredLanguage);
-  primaryConcern = convertToNull(primaryConcern);
-  symptomDuration = convertToNull(symptomDuration);
-  symptomTriggers = convertToNull(symptomTriggers);
-  painLevel = convertToNull(painLevel !== "" ? parseInt(painLevel, 10) : null); // Convert to integer or NULL
-  chronicConditions = convertToNull(chronicConditions);
-  pastSurgeries = convertToNull(pastSurgeries);
-  medications = convertToNull(medications);
-  familyHistory = convertToNull(familyHistory);
-  diet = convertToNull(diet);
-  substanceUse = convertToNull(substanceUse);
-  physicalActivity = convertToNull(physicalActivity);
-  menstrualCycle = convertToNull(menstrualCycle);
-  pregnancyStatus = convertToNull(pregnancyStatus);
-  mentalHealth = convertToNull(mentalHealth);
-  sleepConcerns = convertToNull(sleepConcerns);
 
   try {
     const insertQuery = `
         INSERT INTO health_questionnaires (
-            patient_id, allergies, primary_language, preferred_language, primary_concern, symptom_duration,
-            symptom_triggers, pain_level, chronic_conditions, past_surgeries, medications, family_history,
-            diet, substance_use, physical_activity, menstrual_cycle, pregnancy_status, 
-            mental_health, sleep_concerns
-        )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19)
-        RETURNING *;
+            patient_id, loss_of_vision, vision_eye, vision_onset, vision_pain, vision_duration,
+            redness, redness_eye, redness_onset, redness_pain, redness_duration,
+            watering, watering_eye, watering_onset, watering_pain, watering_duration, discharge_type,
+            itching, itching_eye, itching_duration,
+            pain, pain_eye, pain_onset, pain_duration,
+            htn, dm, heart_disease, allergy_drops, allergy_tablets, seasonal_allergies,
+            contact_lenses, contact_lens_years, contact_lens_frequency,
+            cataract_or_injury, retinal_lasers
+            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                      $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
+                      $32, $33, $34, $35)
+              RETURNING *;
       `;
 
     const values = [
-      patientId,
-      allergies,
-      primaryLanguage,
-      preferredLanguage,
-      primaryConcern,
-      symptomDuration,
-      symptomTriggers,
-      painLevel,
-      chronicConditions,
-      pastSurgeries,
-      medications,
-      familyHistory,
-      diet,
-      substanceUse,
-      physicalActivity,
-      menstrualCycle,
-      pregnancyStatus,
-      mentalHealth,
-      sleepConcerns,
+      patientId, lossOfVision, visionEye, visionOnset, visionPain, visionDuration,
+      redness, rednessEye, rednessOnset, rednessPain, rednessDuration,
+      watering, wateringEye, wateringOnset, wateringPain, wateringDuration, dischargeType,
+      itching, itchingEye, itchingDuration,
+      pain, painEye, painOnset, painDuration,
+      htn, dm, heartDisease, allergyDrops, allergyTablets, seasonalAllergies,
+      contactLenses, contactLensYears, contactLensFrequency,
+      cataractOrInjury, retinalLasers
     ];
 
     const result = await pool.query(insertQuery, values);
@@ -1306,4 +1280,3 @@ const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
 });
-
