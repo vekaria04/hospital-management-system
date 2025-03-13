@@ -1070,7 +1070,7 @@ app.delete(
   async (req, res) => {
     const { id } = req.params;
 
-    console.log(`🗑️ Delete request received for doctor ID: ${id}`);
+    console.log(`Delete request received for doctor ID: ${id}`);
 
     try {
       const existingDoctor = await pool.query(
@@ -1079,11 +1079,11 @@ app.delete(
       );
 
       if (existingDoctor.rows.length === 0) {
-        console.warn(`⚠️ No doctor found with ID: ${id}`);
+        console.warn(` No doctor found with ID: ${id}`);
         return res.status(404).json({ error: "Doctor not found." });
       }
 
-      console.log("🔍 Doctor found. Proceeding with deletion...");
+      console.log("Doctor found. Proceeding with deletion...");
 
       const doctor = existingDoctor.rows[0]; // Store doctor info
 
