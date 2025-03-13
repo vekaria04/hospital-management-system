@@ -1070,14 +1070,14 @@ app.delete(
   async (req, res) => {
     const { id } = req.params;
 
-    console.log(`🗑️ Delete request received for doctor ID: ${id}`); // Debugging
+    console.log(`🗑️ Delete request received for doctor ID: ${id}`);
 
     try {
-      // ✅ Check if the doctor exists before deleting
       const existingDoctor = await pool.query(
         "SELECT * FROM doctors WHERE id = $1",
         [id]
       );
+
       if (existingDoctor.rows.length === 0) {
         console.warn(`⚠️ No doctor found with ID: ${id}`);
         return res.status(404).json({ error: "Doctor not found." });
@@ -1085,36 +1085,36 @@ app.delete(
 
       console.log("🔍 Doctor found. Proceeding with deletion...");
 
-      // ✅ Delete the doctor
-      const result = await pool.query(
-        "DELETE FROM doctors WHERE id = $1 RETURNING *;",
-        [id]
+      const doctor = existingDoctor.rows[0]; // Store doctor info
+
+      const deleteUser = await pool.query(
+        "DELETE FROM users WHERE id = $1 RETURNING *;",
+        [doctor.user_id]
       );
 
-      if (result.rowCount === 0) {
-        console.error("❌ Deletion failed. No rows affected.");
-        return res.status(500).json({ error: "Failed to delete doctor." });
+      if (deleteUser.rowCount === 0) {
+        console.error("Failed to delete associated user.");
+        return res.status(500).json({ error: "Failed to delete associated user." });
       }
 
-      // Audit log for doctor update
+      console.log("Associated user deleted successfully:", deleteUser.rows[0]);
+
       logEvent({
         user_id: req.user.id,
         action: "DELETE",
         entity: "doctor",
         entity_id: id,
-        old_data: existingDoctor.rows[0],
+        old_data: doctor,
         new_data: null,
         metadata: { endpoint: "DELETE /api/doctors/:id" },
       });
 
-      console.log("✅ Doctor deleted successfully:", result.rows[0]);
-
       res.json({
-        message: "Doctor deleted successfully",
-        doctor: result.rows[0],
+        message: "Doctor and associated user deleted successfully",
+        user: deleteUser.rows[0],
       });
     } catch (error) {
-      console.error("❌ Error deleting doctor:", error);
+      console.error("Error deleting doctor:", error);
       res.status(500).json({ error: "Failed to delete doctor." });
     }
   }
