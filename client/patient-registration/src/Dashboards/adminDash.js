@@ -1,84 +1,81 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config";
+
 const AdminDashboard = () => {
   const navigate = useNavigate();
   const [doctors, setDoctors] = useState([]);
-  const [selectedDoctor, setSelectedDoctor] = useState(null);
   const [patients, setPatients] = useState([]);
   const [editDoctor, setEditDoctor] = useState(null);
+  const [selectedDoctor, setSelectedDoctor] = useState(null);
+  const [auditLogs, setAuditLogs] = useState([]);
+  const [showLogs, setShowLogs] = useState(false);
+  const [questions, setQuestions] = useState([]);
+  const [editQuestion, setEditQuestion] = useState(null);
+
   const [newDoctor, setNewDoctor] = useState({
     firstName: "",
     lastName: "",
     email: "",
     phoneNumber: "",
     specialty: "",
-    password: "" // New field
-  }); const [doctorForm, setDoctorForm] = useState({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "" });
+    password: ""
+  });
 
-  // ✅ Fetch all doctors on page load
+  const [doctorForm, setDoctorForm] = useState({
+    firstName: "", lastName: "", email: "", phoneNumber: "", specialty: ""
+  });
+
+  const [newQuestion, setNewQuestion] = useState({
+    question: "",
+    category: "",
+    field_name: "",
+    options: "",
+    parent_question_id: "",
+    trigger_value: ""
+  });
+
   useEffect(() => {
     fetchDoctors();
+    fetchQuestions();
   }, []);
 
   const fetchDoctors = () => {
-    const token = localStorage.getItem("token"); // ✅ Get Token
-    if (!token) {
-      console.error("❌ No token found. Redirecting to login.");
-      navigate("/login");
-      return;
-    }
+    const token = localStorage.getItem("token");
+    if (!token) return navigate("/login");
 
     fetch(`${API_BASE_URL}/api/doctors`, {
-      headers: { Authorization: `Bearer ${token}` }, // ✅ Include Token
-    })
-      .then((res) => res.json())
-      .then((data) => setDoctors(data))
-      .catch((err) => console.error("❌ Error fetching doctors:", err));
-  };
-
-  // ✅ Fetch patients of a specific doctor
-  const handleViewPatients = (doctorId) => {
-    const token = localStorage.getItem("token");
-
-    fetch(`${API_BASE_URL}/api/doctors/${doctorId}/patients`, {
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then((res) => res.json())
-      .then((data) => {
-        setSelectedDoctor(doctorId);
-        setPatients(data);
-      })
-      .catch((err) => console.error("❌ Error fetching patients:", err));
+      .then(res => res.json())
+      .then(data => setDoctors(data))
+      .catch(err => console.error("Error fetching doctors:", err));
   };
 
-  // ✅ Add a new doctor
+  const fetchQuestions = () => {
+    fetch(`${API_BASE_URL}/api/questions`)
+      .then(res => res.json())
+      .then(data => setQuestions(data))
+      .catch(err => console.error("Error fetching questions:", err));
+  };
+
   const handleAddDoctor = () => {
     const token = localStorage.getItem("token");
-
     fetch(`${API_BASE_URL}/api/doctors`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(newDoctor),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(newDoctor)
     })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          console.error("❌ Error adding doctor:", data.error);
-          return;
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setDoctors([...doctors, data.doctor]);
+          setNewDoctor({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "", password: "" });
         }
-
-        setDoctors([...doctors, data.doctor]); // ✅ Update UI
-        setNewDoctor({ firstName: "", lastName: "", email: "", phoneNumber: "", specialty: "", password: "" }); // ✅ Reset Form
       })
-      .catch((err) => console.error("❌ Error adding doctor:", err));
+      .catch(err => console.error("Error adding doctor:", err));
   };
 
-
-  // ✅ Handle doctor edit
   const handleEditDoctor = (doctor) => {
     setEditDoctor(doctor.id);
     setDoctorForm({
@@ -86,168 +83,221 @@ const AdminDashboard = () => {
       lastName: doctor.last_name,
       email: doctor.email,
       phoneNumber: doctor.phone_number,
-      specialty: doctor.specialty,
+      specialty: doctor.specialty
     });
   };
 
-  // ✅ Submit edited doctor details
   const handleSaveEdit = () => {
     const token = localStorage.getItem("token");
-
-    fetch(`/api/doctors/${editDoctor}`, {
+    fetch(`${API_BASE_URL}/api/doctors/${editDoctor}`, {
       method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-      body: JSON.stringify(doctorForm),
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(doctorForm)
     })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          console.error("❌ Error updating doctor:", data.error);
-          return;
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setDoctors(doctors.map(d => d.id === editDoctor ? { ...d, ...data.doctor } : d));
+          setEditDoctor(null);
         }
-
-        // ✅ Update the doctors list in the UI
-        setDoctors(doctors.map((d) => (d.id === editDoctor ? { ...d, ...data.doctor } : d)));
-
-        console.log("✅ Doctor updated in frontend:", data.doctor);
-
-        // ✅ Clear edit mode
-        setEditDoctor(null);
       })
-      .catch((err) => console.error("❌ Error updating doctor:", err));
+      .catch(err => console.error("Error updating doctor:", err));
   };
 
-
-  // ✅ Remove a doctor
-  const handleRemoveDoctor = (doctorId) => {
+  const handleRemoveDoctor = (id) => {
     const token = localStorage.getItem("token");
-
-    fetch(`/api/doctors/${doctorId}`, {
+    fetch(`${API_BASE_URL}/api/doctors/${id}`, {
       method: "DELETE",
       headers: { Authorization: `Bearer ${token}` }
     })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) {
-          console.error("❌ Error deleting doctor:", data.error);
-          return;
-        }
-
-        // ✅ Remove the doctor from the frontend state
-        setDoctors(doctors.filter((doctor) => doctor.id !== doctorId));
-
-        console.log("✅ Doctor deleted successfully:", data.doctor);
-      })
-      .catch((err) => console.error("❌ Error deleting doctor:", err));
+      .then(res => res.json())
+      .then(() => setDoctors(doctors.filter(doc => doc.id !== id)))
+      .catch(err => console.error("Error deleting doctor:", err));
   };
 
+  const handleAddQuestion = () => {
+    const token = localStorage.getItem("token");
+    const questionData = {
+      ...newQuestion,
+      options: newQuestion.options.split(",").map(opt => opt.trim())
+    };
 
-  // New state for audit logs
-  const [auditLogs, setAuditLogs] = useState([]);
-  const [showLogs, setShowLogs] = useState(false);
+    fetch(`${API_BASE_URL}/api/questions`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(questionData)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setQuestions([...questions, data.question]);
+          setNewQuestion({ question: "", category: "", field_name: "", options: "", parent_question_id: "", trigger_value: "" });
+        }
+      })
+      .catch(err => console.error("Error adding question:", err));
+  };
 
-  // Function to fetch audit logs
+  const handleEditQuestion = (q) => {
+    setEditQuestion(q.id);
+    setNewQuestion({
+      question: q.question,
+      category: q.category,
+      field_name: q.field_name,
+      options: q.options.join(", "),
+      parent_question_id: q.parent_question_id || "",
+      trigger_value: q.trigger_value || ""
+    });
+  };
+
+  const handleSaveEditQuestion = () => {
+    const token = localStorage.getItem("token");
+    const updated = {
+      ...newQuestion,
+      options: newQuestion.options.split(",").map(o => o.trim())
+    };
+
+    fetch(`${API_BASE_URL}/api/questions/${editQuestion}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+      body: JSON.stringify(updated)
+    })
+      .then(res => res.json())
+      .then(data => {
+        if (!data.error) {
+          setQuestions(questions.map(q => q.id === editQuestion ? data.question : q));
+          setEditQuestion(null);
+          setNewQuestion({ question: "", category: "", field_name: "", options: "", parent_question_id: "", trigger_value: "" });
+        }
+      })
+      .catch(err => console.error("Error updating question:", err));
+  };
+
+  const handleDeleteQuestion = (id) => {
+    const token = localStorage.getItem("token");
+    fetch(`${API_BASE_URL}/api/questions/${id}`, {
+      method: "DELETE",
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(res => res.json())
+      .then(() => setQuestions(questions.filter(q => q.id !== id)))
+      .catch(err => console.error("Error deleting question:", err));
+  };
+
+  const handleFieldNameAutoGen = (val) => {
+    const autoFieldName = val.toLowerCase().replace(/[^a-z0-9]+/g, "_").replace(/^_|_$/g, "");
+    setNewQuestion({ ...newQuestion, question: val, field_name: autoFieldName });
+  };
+
   const fetchAuditLogs = () => {
     const token = localStorage.getItem("token");
-    fetch("/api/audit-logs", {
-      headers: { Authorization: `Bearer ${token}` },
+    fetch(`${API_BASE_URL}/api/audit-logs`, {
+      headers: { Authorization: `Bearer ${token}` }
     })
-      .then((res) => res.json())
-      .then((data) => setAuditLogs(data))
-      .catch((err) => console.error("❌ Error fetching audit logs:", err));
+      .then(res => res.json())
+      .then(setAuditLogs)
+      .catch(err => console.error("Error fetching logs:", err));
   };
 
-  // Toggle the audit log view
   const toggleAuditLogs = () => {
-    if (!showLogs) {
-      fetchAuditLogs();
-    }
+    if (!showLogs) fetchAuditLogs();
     setShowLogs(!showLogs);
   };
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900 text-white">
-      <h1 className="text-4xl font-extrabold mb-6">Admin Dashboard</h1>
+    <div className="text-white p-4 space-y-8 bg-gradient-to-br from-purple-900 to-indigo-900 min-h-screen">
+      <h1 className="text-4xl font-bold">Admin Dashboard</h1>
 
-      {/* ✅ Add Doctor Form */}
-      <div className="max-w-3xl w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-8 rounded-lg shadow-lg mb-6">
-        <h2 className="text-2xl font-semibold mb-4">Add Doctor</h2>
-        <input type="text" placeholder="First Name" value={newDoctor.firstName} onChange={(e) => setNewDoctor({ ...newDoctor, firstName: e.target.value })} className="w-full p-2 border rounded mb-2 text-black" />
-        <input type="text" placeholder="Last Name" value={newDoctor.lastName} onChange={(e) => setNewDoctor({ ...newDoctor, lastName: e.target.value })} className="w-full p-2 border rounded mb-2 text-black" />
-        <input type="email" placeholder="Email" value={newDoctor.email} onChange={(e) => setNewDoctor({ ...newDoctor, email: e.target.value })} className="w-full p-2 border rounded mb-2 text-black" />
-        <input type="password" placeholder="Password" value={newDoctor.password} onChange={(e) => setNewDoctor({ ...newDoctor, password: e.target.value })} className="w-full p-2 border rounded mb-2 text-black" />
-        <input type="text" placeholder="Phone Number" value={newDoctor.phoneNumber} onChange={(e) => setNewDoctor({ ...newDoctor, phoneNumber: e.target.value })} className="w-full p-2 border rounded mb-2 text-black" />
-        <input type="text" placeholder="Specialty" value={newDoctor.specialty} onChange={(e) => setNewDoctor({ ...newDoctor, specialty: e.target.value })} className="w-full p-2 border rounded mb-2 text-black" />
-        <button onClick={handleAddDoctor} className="mt-4 w-full bg-orange-500 hover:bg-orange-600 text-white py-3 rounded-lg text-lg shadow-md">Add Doctor</button>
+      {/* Add Doctor Form */}
+      <div className="bg-purple-700 p-4 rounded shadow">
+        <h2 className="text-2xl font-semibold mb-2">Add Doctor</h2>
+        {["firstName", "lastName", "email", "password", "phoneNumber", "specialty"].map((field, i) => (
+          <input key={i} className="w-full p-2 mb-2 text-black rounded" type="text" placeholder={field} value={newDoctor[field]} onChange={e => setNewDoctor({ ...newDoctor, [field]: e.target.value })} />
+        ))}
+        <button onClick={handleAddDoctor} className="bg-orange-500 px-4 py-2 rounded">Add Doctor</button>
       </div>
 
-      {/* ✅ Doctor List */}
-      <h2 className="text-2xl font-semibold mb-4">Doctors</h2>
-      <ul className="w-full max-w-2xl bg-white p-4 rounded shadow">
-        {doctors.map((doctor) => (
-          <li key={doctor.id} className="p-3 border-b flex justify-between text-black">
-            <span>{doctor.first_name} {doctor.last_name} - {doctor.specialty} ({doctor.email})</span>
+      {/* Doctor List */}
+      <div className="bg-white text-black p-4 rounded shadow">
+        <h2 className="text-2xl font-semibold">Doctors</h2>
+        {doctors.map(doc => (
+          <div key={doc.id} className="flex justify-between items-center border-b py-2">
+            <span>{doc.first_name} {doc.last_name} - {doc.specialty}</span>
             <div>
-              <button onClick={() => handleViewPatients(doctor.id)} className="bg-blue-500 hover:bg-blue-600 text-white px-3 py-1 rounded-lg mr-2" >View Patients</button>
-              <button onClick={() => handleEditDoctor(doctor)} className="bg-yellow-500 hover:bg-yellow-600 text-white px-3 py-1 rounded-lg mr-2">Edit</button>
-              <button onClick={() => handleRemoveDoctor(doctor.id)} className="bg-red-500 hover:bg-red-600 text-white px-3 py-1 rounded-lg">Remove</button>
+              <button onClick={() => handleEditDoctor(doc)} className="bg-yellow-500 px-3 py-1 mr-2 rounded">Edit</button>
+              <button onClick={() => handleRemoveDoctor(doc.id)} className="bg-red-500 px-3 py-1 rounded">Delete</button>
             </div>
-          </li>
-        ))}
-      </ul>
-
-      {/* ✅ Edit Doctor Form */}
-      {
-        editDoctor && (
-          <div className="w-full max-w-md mt-4 bg-white p-4 rounded shadow">
-            <h3 className="text-lg font-semibold">Edit Doctor</h3>
-            <input className="w-full p-2 border rounded mb-2 text-black" type="text" placeholder="First Name" value={doctorForm.firstName} onChange={(e) => setDoctorForm({ ...doctorForm, firstName: e.target.value })} />
-            <input className="w-full p-2 border rounded mb-2 text-black" type="text" placeholder="Last Name" value={doctorForm.lastName} onChange={(e) => setDoctorForm({ ...doctorForm, lastName: e.target.value })} />
-            <input className="w-full p-2 border rounded mb-2 text-black" type="email" placeholder="Email" value={doctorForm.email} onChange={(e) => setDoctorForm({ ...doctorForm, email: e.target.value })} />
-            <button onClick={handleSaveEdit} className="bg-green-500 text-white px-4 py-2 rounded">Save</button>
           </div>
-        )
-      }
+        ))}
+      </div>
 
-      {/* Audit Logs Section at the bottom */}
-      <div className="max-w-3xl w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-8 rounded-lg shadow-lg mt-6">
-        <button onClick={toggleAuditLogs} className="w-full bg-purple-500 hover:bg-purple-600 text-white py-3 rounded-lg text-lg shadow-md">
-          {showLogs ? "Hide Audit Logs" : "Show Audit Logs"}
-        </button>
+      {/* Edit Doctor */}
+      {editDoctor && (
+        <div className="bg-white text-black p-4 rounded shadow">
+          <h3 className="text-lg font-semibold">Edit Doctor</h3>
+          {["firstName", "lastName", "email"].map(field => (
+            <input key={field} className="w-full p-2 mb-2 rounded" type="text" value={doctorForm[field]} onChange={e => setDoctorForm({ ...doctorForm, [field]: e.target.value })} />
+          ))}
+          <button onClick={handleSaveEdit} className="bg-green-500 text-white px-4 py-2 rounded">Save</button>
+        </div>
+      )}
 
-        {showLogs && (
-          <div>
-            <h2 className="text-2xl font-semibold mb-2">Audit Logs</h2>
-            <ul className="overflow-y-scroll h-64">
-              {auditLogs.map((log) => (
-                <li key={log.id} className="p-2 border-b">
-                  <p>
-                    <strong>Timestamp:</strong> {new Date(log.created_at).toLocaleString()}
-                  </p>
-                  <p>
-                    <strong>User:</strong> {log.user_name || "N/A"}
-                  </p>
-                  <p>
-                    <strong>Action:</strong> {log.action}
-                  </p>
-                  <p>
-                    <strong>Entity:</strong> {log.entity} (ID: {log.entity_id})
-                  </p>
-                  <p>
-                    <strong>Metadata:</strong> {JSON.stringify(log.metadata)}
-                  </p>
-                </li>
+      {/* Health Questions Management */}
+      <div className="bg-purple-700 p-4 rounded shadow">
+        <h2 className="text-2xl font-semibold mb-2">Health Questions</h2>
+        <input className="w-full p-2 mb-2 text-black" placeholder="Question" value={newQuestion.question} onChange={(e) => handleFieldNameAutoGen(e.target.value)} />
+        <input className="w-full p-2 mb-2 text-black" placeholder="Category" value={newQuestion.category} onChange={(e) => setNewQuestion({ ...newQuestion, category: e.target.value })} />
+        <input className="w-full p-2 mb-2 text-black" placeholder="Field Name (auto)" value={newQuestion.field_name} readOnly />
+        <input className="w-full p-2 mb-2 text-black" placeholder="Options (comma separated)" value={newQuestion.options} onChange={(e) => setNewQuestion({ ...newQuestion, options: e.target.value })} />
+        <select
+              className="w-full p-2 mb-2 text-black"
+              value={newQuestion.parent_question_id}
+              onChange={(e) => setNewQuestion({ ...newQuestion, parent_question_id: e.target.value })}
+              >
+              <option value="">None (Top-Level Question)</option>
+                {questions.map((q) => (
+                  <option key={q.id} value={q.id}>
+                    {q.question}
+                  </option>
               ))}
-            </ul>
+        </select>
+        <input className="w-full p-2 mb-2 text-black" placeholder="Trigger Value" value={newQuestion.trigger_value} onChange={(e) => setNewQuestion({ ...newQuestion, trigger_value: e.target.value })} />
+        <button onClick={editQuestion ? handleSaveEditQuestion : handleAddQuestion} className="bg-orange-500 w-full py-2 mt-2 rounded">
+          {editQuestion ? "Update Question" : "Add Question"}
+        </button>
+      </div>
+
+      {/* List of Questions */}
+      <div className="bg-white text-black p-4 rounded shadow">
+        {questions.map(q => (
+          <div key={q.id} className="flex justify-between items-center border-b py-2">
+            <span>{q.question} ({q.category})</span>
+            <div>
+              <button onClick={() => handleEditQuestion(q)} className="bg-yellow-500 px-3 py-1 mr-2 rounded">Edit</button>
+              <button onClick={() => handleDeleteQuestion(q.id)} className="bg-red-500 px-3 py-1 rounded">Delete</button>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Audit Logs */}
+      <div className="mt-6">
+        <button onClick={toggleAuditLogs} className="bg-purple-600 px-4 py-2 rounded">
+          {showLogs ? "Hide Logs" : "Show Audit Logs"}
+        </button>
+        {showLogs && (
+          <div className="bg-white text-black mt-4 p-4 rounded shadow h-64 overflow-y-auto">
+            {auditLogs.map(log => (
+              <div key={log.id} className="border-b py-2">
+                <p><strong>Action:</strong> {log.action} on {log.entity}</p>
+                <p><strong>User:</strong> {log.user_name}</p>
+                <p><strong>Time:</strong> {new Date(log.created_at).toLocaleString()}</p>
+              </div>
+            ))}
           </div>
         )}
       </div>
-    </div >
+    </div>
   );
 };
 
 export default AdminDashboard;
-

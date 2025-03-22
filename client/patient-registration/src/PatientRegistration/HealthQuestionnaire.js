@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API_BASE_URL from "../config";
 
@@ -6,46 +6,33 @@ const HealthQuestionnaire = () => {
   const navigate = useNavigate();
   const { patientId } = useParams();
 
-  const [formData, setFormData] = useState({
-    lossOfVision: "",
-    visionEye: "",
-    visionOnset: "",
-    visionPain: "",
-    visionDuration: "",
-    redness: "",
-    rednessEye: "",
-    rednessOnset: "",
-    rednessPain: "",
-    rednessDuration: "",
-    watering: "",
-    wateringEye: "",
-    wateringOnset: "",
-    wateringPain: "",
-    wateringDuration: "",
-    dischargeType: "",
-    itching: "",
-    itchingEye: "",
-    itchingDuration: "",
-    pain: "",
-    painEye: "",
-    painOnset: "",
-    painDuration: "",
-    htn: "",
-    dm: "",
-    heartDisease: "",
-    allergyDrops: "",
-    allergyTablets: "",
-    seasonalAllergies: "",
-    contactLenses: "",
-    contactLensYears: "",
-    contactLensFrequency: "",
-    cataractOrInjury: "",
-    retinalLasers: "",
-  });
+  const [questions, setQuestions] = useState([]);
+  const [answers, setAnswers] = useState({});
+  const [loading, setLoading] = useState(true);
 
-  const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData({ ...formData, [name]: value });
+  // Fetch questions from backend
+  useEffect(() => {
+    fetch(`${API_BASE_URL}/api/questions`)
+      .then((res) => res.json())
+      .then((data) => {
+        setQuestions(data);
+        setLoading(false);
+      })
+      .catch((err) => {
+        console.error("Error fetching questions:", err);
+        setLoading(false);
+      });
+  }, []);
+
+  const handleChange = (fieldName, value) => {
+    setAnswers({ ...answers, [fieldName]: value });
+  };
+
+  const shouldShow = (question) => {
+    if (!question.parent_question_id) return true; // Always show top-level questions
+    const parent = questions.find((q) => q.id === question.parent_question_id);
+    if (!parent) return false;
+    return answers[parent.field_name] === question.trigger_value;
   };
 
   const handleSubmit = async (e) => {
@@ -54,221 +41,76 @@ const HealthQuestionnaire = () => {
       const response = await fetch(`${API_BASE_URL}/api/submit-health-questionnaire`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...formData, patientId }),
+        body: JSON.stringify({ ...answers, patientId }),
       });
+
       if (response.ok) {
-        alert("Health questionnaire submitted successfully!");
+        alert("✅ Questionnaire submitted!");
         navigate("/");
       } else {
-        alert("Failed to submit the health questionnaire.");
+        const data = await response.json();
+        console.error(data);
+        alert("❌ Submission failed");
       }
-    } catch (error) {
-      console.error("Error submitting questionnaire:", error);
-      alert("An error occurred while submitting the health questionnaire.");
+    } catch (err) {
+      console.error("Error submitting questionnaire:", err);
+      alert("An error occurred while submitting the form.");
     }
   };
 
+  if (loading) {
+    return <div className="text-white text-center mt-10">Loading questions...</div>;
+  }
+
+  const groupedByCategory = questions.reduce((acc, q) => {
+    if (!acc[q.category]) acc[q.category] = [];
+    acc[q.category].push(q);
+    return acc;
+  }, {});
+
   return (
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
-    <div className="max-w-2xl w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-10 rounded-lg shadow-lg text-white">
-    <h2 className="text-3xl font-bold text-center mb-6">
-      Health Questionnaire
-    </h2>
-    <form onSubmit={handleSubmit} className="space-y-4">
-      
-      {/* Ophthalmology History */}
-      <h3 className="text-xl font-semibold">Ophthalmology History</h3>
+      <div className="max-w-3xl w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-10 rounded-lg shadow-lg text-white">
+        <h2 className="text-3xl font-bold text-center mb-6">Health Questionnaire</h2>
+        <form onSubmit={handleSubmit} className="space-y-6">
 
-      {/* Loss of Vision */}
-      <label className="block text-sm font-medium">Have you experienced loss of vision?</label>
-      <select name="lossOfVision" value={formData.lossOfVision} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-        <option value="">Select</option>
-        <option value="Yes">Yes</option>
-        <option value="No">No</option>
-      </select>
-      {formData.lossOfVision === "Yes" && (
-        <>
-          <label className="block text-sm font-medium">Which Eye?</label>
-          <select name="visionEye" value={formData.visionEye} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="R">Right</option>
-            <option value="L">Left</option>
-            <option value="Both">Both</option>
-          </select>
+          {Object.entries(groupedByCategory).map(([category, group]) => (
+            <div key={category}>
+              <h3 className="text-xl font-semibold mb-4">{category}</h3>
+              {group.map((q) => {
+                if (!shouldShow(q)) return null;
 
-          <label className="block text-sm font-medium">Onset?</label>
-          <select name="visionOnset" value={formData.visionOnset} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="Sudden">Sudden</option>
-            <option value="Gradual">Gradual</option>
-          </select>
+                return (
+                  <div key={q.id} className="mb-4">
+                    <label className="block text-sm font-medium mb-1">{q.question}</label>
+                    <select
+                      name={q.field_name}
+                      value={answers[q.field_name] || ""}
+                      onChange={(e) => handleChange(q.field_name, e.target.value)}
+                      className="w-full p-2 bg-purple-100 text-black border rounded"
+                      required
+                    >
+                      <option value="">Select</option>
+                      {q.options.map((opt, i) => (
+                        <option key={i} value={opt}>{opt}</option>
+                      ))}
+                    </select>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
 
-          <label className="block text-sm font-medium">Pain?</label>
-          <select name="visionPain" value={formData.visionPain} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="Yes">Yes</option>
-            <option value="No">No</option>
-          </select>
-
-          <label className="block text-sm font-medium">Duration?</label>
-          <select name="visionDuration" value={formData.visionDuration} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="<2 Years">Less than 2 years</option>
-            <option value="2-5 Years">2-5 years</option>
-            <option value="5+ Years">More than 5 years</option>
-          </select>
-        </>
-      )}
-
-      {/* Redness */}
-      <label className="block text-sm font-medium">Have you experienced redness in your eyes?</label>
-      <select name="redness" value={formData.redness} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-        <option value="">Select</option>
-        <option value="Yes">Yes</option>
-        <option value="No">No</option>
-      </select>
-      {formData.redness === "Yes" && (
-        <>
-          <label className="block text-sm font-medium">Which Eye?</label>
-          <select name="rednessEye" value={formData.rednessEye} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="R">Right</option>
-            <option value="L">Left</option>
-            <option value="Both">Both</option>
-          </select>
-
-          <label className="block text-sm font-medium">Onset?</label>
-          <select name="rednessOnset" value={formData.rednessOnset} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="Sudden">Sudden</option>
-            <option value="Gradual">Gradual</option>
-          </select>
-
-          <label className="block text-sm font-medium">Pain?</label>
-          <select name="rednessPain" value={formData.rednessPain} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="Yes">Yes</option>
-            <option value="No">No</option>
-          </select>
-
-          <label className="block text-sm font-medium">Duration?</label>
-          <select name="rednessDuration" value={formData.rednessDuration} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="<1 Week">Less than 1 week</option>
-            <option value="1-4 Weeks">1-4 weeks</option>
-            <option value="4+ Weeks">More than 4 weeks</option>
-          </select>
-        </>
-      )}
-
-      {/* Watering */}
-      <label className="block text-sm font-medium">Have your eyes been watering?</label>
-      <select name="watering" value={formData.watering} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-        <option value="">Select</option>
-        <option value="Yes">Yes</option>
-        <option value="No">No</option>
-      </select>
-      {formData.watering === "Yes" && (
-        <>
-          <label className="block text-sm font-medium">Discharge Type?</label>
-          <select name="dischargeType" value={formData.dischargeType} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-            <option value="">Select</option>
-            <option value="Clear">Clear</option>
-            <option value="Sticky">Sticky</option>
-          </select>
-        </>
-      )}
-
-      {/* Itching */}
-      <label className="block text-sm font-medium">Have you experienced itching?</label>
-      <select name="itching" value={formData.itching} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-        <option value="">Select</option>
-        <option value="Yes">Yes</option>
-        <option value="No">No</option>
-      </select>
-
-      {/* Pain */}
-      <label className="block text-sm font-medium">Have you experienced eye pain?</label>
-      <select name="pain" value={formData.pain} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-        <option value="">Select</option>
-        <option value="Yes">Yes</option>
-        <option value="No">No</option>
-      </select>
-
-        {/* Systemic History */}
-        <h3 className="text-xl font-semibold mt-6">Systemic History</h3>
-
-        <label className="block text-sm font-medium">Do you have hypertension (HTN)?</label>
-        <select name="htn" value={formData.htn} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-          <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-
-        <label className="block text-sm font-medium">Do you have diabetes (DM)?</label>
-        <select name="dm" value={formData.dm} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-          <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-
-        {/* Allergy History */}
-        <h3 className="text-xl font-semibold mt-6">Allergy History</h3>
-
-        <label className="block text-sm font-medium">Are you allergic to any eye drops?</label>
-        <select name="allergyDrops" value={formData.allergyDrops} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-          <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-
-        {/* Contact Lenses History */}
-        <h3 className="text-xl font-semibold mt-6">Contact Lenses History</h3>
-
-        <label className="block text-sm font-medium">Do you use contact lenses?</label>
-        <select name="contactLenses" value={formData.contactLenses} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-          <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-        {formData.contactLenses === "Yes" && (
-          <>
-            <label className="block text-sm font-medium">How long have you used contact lenses?</label>
-            <select name="contactLensYears" value={formData.contactLensYears} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-              <option value="">Select</option>
-              <option value="<1 Year">Less than 1 year</option>
-              <option value="1-5 Years">1-5 years</option>
-              <option value="5+ Years">More than 5 years</option>
-            </select>
-          </>
-        )}
-
-        {/* Eye Surgical History */}
-        <h3 className="text-xl font-semibold mt-6">Eye Surgical History</h3>
-
-        <label className="block text-sm font-medium">Have you had a cataract or eye injury?</label>
-        <select name="cataractOrInjury" value={formData.cataractOrInjury} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-          <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-
-        <label className="block text-sm font-medium">Have you had retinal laser treatment?</label>
-        <select name="retinalLasers" value={formData.retinalLasers} onChange={handleChange} className="w-full p-2 bg-purple-100 text-black border rounded">
-          <option value="">Select</option>
-          <option value="Yes">Yes</option>
-          <option value="No">No</option>
-        </select>
-
-        <button type="submit" className="w-full py-3 px-6 bg-orange-500 text-white font-semibold rounded-md hover:bg-orange-600 shadow-md focus:ring-2 focus:ring-orange-400">
-          Submit
-        </button>
-      </form>
+          <button
+            type="submit"
+            className="w-full py-3 px-6 bg-orange-500 text-white font-semibold rounded-md hover:bg-orange-600 shadow-md"
+          >
+            Submit
+          </button>
+        </form>
+      </div>
     </div>
-  </div>
   );
 };
 
 export default HealthQuestionnaire;
-
-

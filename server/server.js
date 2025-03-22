@@ -93,45 +93,15 @@ const createTables = async () => {
           metadata JSONB               -- Additional context (e.g., IP address, session info)
         );
       `);
-
-    await pool.query(`
-        CREATE TABLE IF NOT EXISTS health_questionnaires (
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS health_questions (
             id SERIAL PRIMARY KEY,
-            patient_id INT REFERENCES patients(id) ON DELETE CASCADE,
-            loss_of_vision VARCHAR(10),
-            vision_eye VARCHAR(10),
-            vision_onset VARCHAR(10),
-            vision_pain VARCHAR(10),
-            vision_duration VARCHAR(10),
-            redness VARCHAR(10),
-            redness_eye VARCHAR(10),
-            redness_onset VARCHAR(10),
-            redness_pain VARCHAR(10),
-            redness_duration VARCHAR(10),
-            watering VARCHAR(10),
-            watering_eye VARCHAR(10),
-            watering_onset VARCHAR(10),
-            watering_pain VARCHAR(10),
-            watering_duration VARCHAR(10),
-            discharge_type VARCHAR(10),
-            itching VARCHAR(10),
-            itching_eye VARCHAR(10),
-            itching_duration VARCHAR(10),
-            pain VARCHAR(10),
-            pain_eye VARCHAR(10),
-            pain_onset VARCHAR(10),
-            pain_duration VARCHAR(10),
-            htn VARCHAR(10),
-            dm VARCHAR(10),
-            heart_disease VARCHAR(10),
-            allergy_drops VARCHAR(10),
-            allergy_tablets VARCHAR(10),
-            seasonal_allergies VARCHAR(10),
-            contact_lenses VARCHAR(10),
-            contact_lens_years VARCHAR(10),
-            contact_lens_frequency VARCHAR(10),
-            cataract_or_injury VARCHAR(10),
-            retinal_lasers VARCHAR(10),
+            question TEXT NOT NULL,
+            category TEXT NOT NULL,
+            field_name TEXT UNIQUE NOT NULL,
+            options TEXT[], -- Stored as a JSON stringified array
+            parent_question_id INT REFERENCES health_questions(id) ON DELETE CASCADE,
+            trigger_value TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
       `);
@@ -222,6 +192,8 @@ const authorizeRoles = (...allowedRoles) => {
     next();
   };
 };
+
+
 
 // Get Audit Logs API for Admin Dash
 app.get(
@@ -386,70 +358,6 @@ app.post("/api/login", async (req, res) => {
   } catch (error) {
     console.error("❌ Login error:", error);
     res.status(500).json({ error: "Error logging in" });
-  }
-});
-
-// Route to submit health questionnaire
-app.post("/api/submit-health-questionnaire", async (req, res) => {
-  let {
-    patientId, lossOfVision, visionEye, visionOnset, visionPain, visionDuration,
-    redness, rednessEye, rednessOnset, rednessPain, rednessDuration,
-    watering, wateringEye, wateringOnset, wateringPain, wateringDuration, dischargeType,
-    itching, itchingEye, itchingDuration,
-    pain, painEye, painOnset, painDuration,
-    htn, dm, heartDisease, allergyDrops, allergyTablets, seasonalAllergies,
-    contactLenses, contactLensYears, contactLensFrequency,
-    cataractOrInjury, retinalLasers
-  } = req.body;
-
-  try {
-    const insertQuery = `
-        INSERT INTO health_questionnaires (
-            patient_id, loss_of_vision, vision_eye, vision_onset, vision_pain, vision_duration,
-            redness, redness_eye, redness_onset, redness_pain, redness_duration,
-            watering, watering_eye, watering_onset, watering_pain, watering_duration, discharge_type,
-            itching, itching_eye, itching_duration,
-            pain, pain_eye, pain_onset, pain_duration,
-            htn, dm, heart_disease, allergy_drops, allergy_tablets, seasonal_allergies,
-            contact_lenses, contact_lens_years, contact_lens_frequency,
-            cataract_or_injury, retinal_lasers
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
-                      $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31,
-                      $32, $33, $34, $35)
-              RETURNING *;
-      `;
-
-    const values = [
-      patientId, lossOfVision, visionEye, visionOnset, visionPain, visionDuration,
-      redness, rednessEye, rednessOnset, rednessPain, rednessDuration,
-      watering, wateringEye, wateringOnset, wateringPain, wateringDuration, dischargeType,
-      itching, itchingEye, itchingDuration,
-      pain, painEye, painOnset, painDuration,
-      htn, dm, heartDisease, allergyDrops, allergyTablets, seasonalAllergies,
-      contactLenses, contactLensYears, contactLensFrequency,
-      cataractOrInjury, retinalLasers
-    ];
-
-    const result = await pool.query(insertQuery, values);
-
-    // Audit log for health questionnaire submission
-    logEvent({
-      user_id: null, // Adjust if you have an authenticated user
-      action: "CREATE",
-      entity: "health_questionnaire",
-      entity_id: result.rows[0].id,
-      old_data: null,
-      new_data: result.rows[0],
-      metadata: { endpoint: "POST /api/submit-health-questionnaire" },
-    });
-
-    res.json({
-      message: "Health questionnaire submitted successfully!",
-      questionnaire: result.rows[0],
-    });
-  } catch (error) {
-    console.error("Error saving health questionnaire:", error);
-    res.status(500).json({ error: "Failed to submit health questionnaire." });
   }
 });
 
@@ -694,6 +602,97 @@ app.post("/api/register-family", async (req, res) => {
     res.status(500).json({
       error: "Failed to register family. See server logs for details.",
     });
+  }
+});
+
+// Get all questions
+app.get("/api/questions", async (req, res) => {
+  try {
+    const result = await pool.query("SELECT * FROM health_questions ORDER BY id ASC");
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching questions:", error);
+    res.status(500).json({ error: "Failed to fetch questions" });
+  }
+});
+
+// Create a new question (admin only)
+app.post("/api/questions", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  const { question, category, field_name, options, parent_question_id, trigger_value } = req.body;
+
+  if (!question || !category || !field_name || !options) {
+    return res.status(400).json({ error: "All fields are required" });
+  }
+
+  try {
+    const insertQuery = `
+      INSERT INTO health_questions (question, category, field_name, options, parent_question_id, trigger_value)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `;
+    let optionsArray = Array.isArray(options)
+  ? options
+  : options.split(",").map(opt => opt.trim());
+
+    const values = [
+      question,
+      category,
+      field_name,
+      `{${optionsArray.join(",")}}`, // This now works as expected
+      parent_question_id || null,
+      trigger_value || null
+    ];
+
+    const result = await pool.query(insertQuery, values);
+    res.json({ message: "Question added successfully!", question: result.rows[0] });
+  } catch (error) {
+    console.error("Error adding question:", error);
+    res.status(500).json({ error: "Failed to add question" });
+  }
+});
+
+// Update a question (admin only)
+app.put("/api/questions/:id", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  const { id } = req.params;
+  const { question, category, field_name, options, parent_question_id, trigger_value } = req.body;
+
+  try {
+    const updateQuery = `
+      UPDATE health_questions 
+      SET question = $1, category = $2, field_name = $3, options = $4, parent_question_id = $5, trigger_value = $6
+      WHERE id = $7 RETURNING *;
+    `;
+    let optionsArray = Array.isArray(options)
+  ? options
+  : options.split(",").map(opt => opt.trim());
+
+    const values = [
+      question,
+      category,
+      field_name,
+      `{${optionsArray.join(",")}}`, // match CREATE format
+      parent_question_id || null,
+      trigger_value || null,
+      id
+    ];
+    const result = await pool.query(updateQuery, values);
+    res.json({ message: "Question updated successfully!", question: result.rows[0] });
+  } catch (error) {
+    console.error("Error updating question:", error);
+    res.status(500).json({ error: "Failed to update question" });
+  }
+});
+
+// Delete a question (Admin only)
+app.delete("/api/questions/:id", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    await pool.query("DELETE FROM health_questions WHERE id = $1;", [id]);
+    res.json({ message: "Question deleted successfully!" });
+  } catch (error) {
+    console.error("Error deleting question:", error);
+    res.status(500).json({ error: "Failed to delete question" });
   }
 });
 
