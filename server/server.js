@@ -29,7 +29,7 @@ pool
   .connect()
   .then(() => console.log("Connected to YugabyteDB"))
   .catch((err) => console.error("YugabyteDB connection error:", err));
-
+//test to fix 
 const createTables = async () => {
   try {
     await pool.query(`
@@ -93,7 +93,7 @@ const createTables = async () => {
           metadata JSONB               -- Additional context (e.g., IP address, session info)
         );
       `);
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS health_questions (
             id SERIAL PRIMARY KEY,
             question TEXT NOT NULL,
@@ -631,8 +631,8 @@ app.post("/api/questions", authenticate, authorizeRoles("Admin"), async (req, re
       RETURNING *;
     `;
     let optionsArray = Array.isArray(options)
-  ? options
-  : options.split(",").map(opt => opt.trim());
+      ? options
+      : options.split(",").map(opt => opt.trim());
 
     const values = [
       question,
@@ -663,8 +663,8 @@ app.put("/api/questions/:id", authenticate, authorizeRoles("Admin"), async (req,
       WHERE id = $7 RETURNING *;
     `;
     let optionsArray = Array.isArray(options)
-  ? options
-  : options.split(",").map(opt => opt.trim());
+      ? options
+      : options.split(",").map(opt => opt.trim());
 
     const values = [
       question,
