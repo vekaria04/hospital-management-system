@@ -1352,6 +1352,40 @@ app.get("/api/metrics/audit-summary", authenticate, authorizeRoles("Admin"), asy
   }
 });
 
+app.get("/api/metrics/summary", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const patientsResult = await pool.query("SELECT COUNT(*) AS total_patients FROM patients;");
+    const doctorsResult = await pool.query("SELECT COUNT(*) AS total_doctors FROM doctors;");
+    const familyResult = await pool.query("SELECT COUNT(*) AS total_family_groups FROM family_groups;");
+
+    res.json({
+      total_patients: patientsResult.rows[0].total_patients,
+      total_doctors: doctorsResult.rows[0].total_doctors,
+      total_family_groups: familyResult.rows[0].total_family_groups
+    });
+  } catch (error) {
+    console.error("Error fetching summary metrics:", error);
+    res.status(500).json({ error: "Failed to fetch summary metrics" });
+  }
+});
+
+app.get("/api/metrics/doctor-performance", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT d.id, d.first_name, d.last_name, COUNT(p.id) AS patient_count
+      FROM doctors d
+      LEFT JOIN patients p ON d.id = p.assigned_doctor_id
+      GROUP BY d.id
+      ORDER BY patient_count DESC;
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching doctor performance metrics:", error);
+    res.status(500).json({ error: "Failed to fetch doctor performance metrics" });
+  }
+});
+
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
