@@ -1385,6 +1385,58 @@ app.get("/api/metrics/doctor-performance", authenticate, authorizeRoles("Admin")
   }
 });
 
+const Groq = require("groq-sdk");
+const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+
+app.get("/api/reports/patient/:patientId", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  const { patientId } = req.params;
+
+  try {
+    const result = await pool.query(`
+      SELECT p.id AS patient_id, p.age, p.gender, r.field_name, r.answer
+      FROM patient_responses r
+      JOIN patients p ON r.patient_id = p.id
+      WHERE p.id = $1;
+    `, [patientId]);
+
+    const rows = result.rows;
+
+    if (rows.length === 0) {
+      return res.status(404).json({ error: "No responses found for this patient." });
+    }
+
+    const { age, gender } = rows[0];
+    const responses = {};
+    rows.forEach(({ field_name, answer }) => {
+      responses[field_name] = answer;
+    });
+
+    const prompt = `
+You are a healthcare assistant AI. Here's a health questionnaire from a rural patient:
+
+- Age: ${age}
+- Gender: ${gender}
+- Symptoms: ${JSON.stringify(responses)}
+
+Please summarize:
+- Key reported symptoms
+- Possible health concerns
+- Suggestions for follow-up or care
+    `;
+
+    const groqRes = await groq.chat.completions.create({
+      model: "llama3-8b-8192",
+      messages: [{ role: "user", content: prompt }],
+    });
+
+    const report = groqRes.choices[0].message.content;
+    res.json({ report });
+  } catch (err) {
+    console.error("GROQ patient report failed:", err);
+    res.status(500).json({ error: "Failed to generate report for patient" });
+  }
+});
+
 
 const PORT = 3000;
 app.listen(PORT, () => {
