@@ -1337,6 +1337,21 @@ app.get(
   }
 );
 
+//Get the amount of audits and changes 
+app.get("/api/metrics/audit-summary", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT action, COUNT(*) AS count
+      FROM audit_logs
+      GROUP BY action;
+    `);
+    res.json(result.rows);
+  } catch (error) {
+    console.error("Error fetching audit log summary:", error);
+    res.status(500).json({ error: "Failed to fetch audit log summary" });
+  }
+});
+
 const PORT = 3000;
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
