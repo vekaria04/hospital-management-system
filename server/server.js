@@ -6,6 +6,7 @@ const bcrypt = require('bcryptjs');
 const jwt = require("jsonwebtoken");
 const passport = require("passport");
 const LocalStrategy = require("passport-local").Strategy;
+const translate = require('@vitalets/google-translate-api');
 const validator = require("validator");
 const app = express();
 app.use(bodyParser.json());
@@ -29,7 +30,7 @@ pool
   .connect()
   .then(() => console.log("Connected to YugabyteDB"))
   .catch((err) => console.error("YugabyteDB connection error:", err));
-
+//test to fix 
 const createTables = async () => {
   try {
     await pool.query(`
@@ -95,7 +96,7 @@ const createTables = async () => {
           metadata JSONB               -- Additional context (e.g., IP address, session info)
         );
       `);
-      await pool.query(`
+    await pool.query(`
         CREATE TABLE IF NOT EXISTS health_questions (
             id SERIAL PRIMARY KEY,
             question TEXT NOT NULL,
@@ -106,6 +107,16 @@ const createTables = async () => {
             trigger_value TEXT,
             created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+      `);
+
+    await pool.query(`
+        CREATE TABLE IF NOT EXISTS patient_responses (
+          id SERIAL PRIMARY KEY,
+          patient_id INT REFERENCES patients(id) ON DELETE CASCADE,
+          field_name TEXT NOT NULL REFERENCES health_questions(field_name),
+          answer TEXT,
+          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        );
       `);
 
     // Create default Admin user
@@ -609,12 +620,36 @@ app.post("/api/register-family", async (req, res) => {
 
 // Get all questions
 app.get("/api/questions", async (req, res) => {
+  const lang = req.query.lang || "en"; // default to English if no lang is provided
+
   try {
     const result = await pool.query("SELECT * FROM health_questions ORDER BY id ASC");
-    res.json(result.rows);
+
+    // If English is requested, skip translation
+    if (lang === "en") {
+      return res.json(result.rows);
+    }
+
+    // Translate each question and its options
+    const translated = await Promise.all(
+      result.rows.map(async (q) => {
+        const translatedQuestion = await translate(q.question, { to: lang });
+        const translatedOptions = q.options
+          ? await Promise.all(q.options.map(opt => translate(opt, { to: lang }).then(r => r.text)))
+          : [];
+
+        return {
+          ...q,
+          question: translatedQuestion.text,
+          options: translatedOptions
+        };
+      })
+    );
+
+    res.json(translated);
   } catch (error) {
-    console.error("Error fetching questions:", error);
-    res.status(500).json({ error: "Failed to fetch questions" });
+    console.error("Error fetching or translating questions:", error);
+    res.status(500).json({ error: "Failed to fetch or translate questions" });
   }
 });
 
@@ -633,8 +668,8 @@ app.post("/api/questions", authenticate, authorizeRoles("Admin"), async (req, re
       RETURNING *;
     `;
     let optionsArray = Array.isArray(options)
-  ? options
-  : options.split(",").map(opt => opt.trim());
+      ? options
+      : options.split(",").map(opt => opt.trim());
 
     const values = [
       question,
@@ -665,8 +700,8 @@ app.put("/api/questions/:id", authenticate, authorizeRoles("Admin"), async (req,
       WHERE id = $7 RETURNING *;
     `;
     let optionsArray = Array.isArray(options)
-  ? options
-  : options.split(",").map(opt => opt.trim());
+      ? options
+      : options.split(",").map(opt => opt.trim());
 
     const values = [
       question,
@@ -695,6 +730,33 @@ app.delete("/api/questions/:id", authenticate, authorizeRoles("Admin"), async (r
   } catch (error) {
     console.error("Error deleting question:", error);
     res.status(500).json({ error: "Failed to delete question" });
+  }
+});
+
+app.post("/api/submit-health-questionnaire", async (req, res) => {
+  const { patientId, ...answers } = req.body;
+
+  if (!patientId || Object.keys(answers).length === 0) {
+    return res.status(400).json({ error: "Patient ID and answers are required." });
+  }
+
+  try {
+    // Optional: Remove previous answers if re-submitting
+    await pool.query("DELETE FROM patient_responses WHERE patient_id = $1", [patientId]);
+
+    const insertQuery = ` 
+      INSERT INTO patient_responses (patient_id, field_name, answer)
+      VALUES ($1, $2, $3)
+    `;
+
+    for (const [field_name, answer] of Object.entries(answers)) {
+      await pool.query(insertQuery, [patientId, field_name, answer]);
+    }
+
+    res.status(201).json({ message: "Health questionnaire submitted successfully!" });
+  } catch (error) {
+    console.error("Error submitting questionnaire:", error);
+    res.status(500).json({ error: "Failed to submit questionnaire." });
   }
 });
 
