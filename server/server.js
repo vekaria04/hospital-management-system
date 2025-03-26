@@ -1277,39 +1277,6 @@ app.get(
   }
 );
 
-app.get("/api/metrics/registrations", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  try {
-    // Group registrations by date based on the created_at field in the patients table.
-    const result = await pool.query(`
-      SELECT DATE(created_at) AS registration_date, COUNT(*) AS count
-      FROM patients
-      GROUP BY DATE(created_at)
-      ORDER BY registration_date;
-    `);
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching registration trends:", error);
-    res.status(500).json({ error: "Failed to fetch registration trends" });
-  }
-});
-
-
-app.get("/api/metrics/doctor-performance", authenticate, authorizeRoles("Admin"), async (req, res) => {
-  try {
-    const result = await pool.query(`
-      SELECT d.id, d.first_name, d.last_name, COUNT(p.id) AS patient_count
-      FROM doctors d
-      LEFT JOIN patients p ON d.id = p.assigned_doctor_id
-      GROUP BY d.id
-      ORDER BY patient_count DESC;
-    `);
-    res.json(result.rows);
-  } catch (error) {
-    console.error("Error fetching doctor performance metrics:", error);
-    res.status(500).json({ error: "Failed to fetch doctor performance metrics" });
-  }
-});
-
 
 const PORT = 3000;
 app.listen(PORT, () => {
