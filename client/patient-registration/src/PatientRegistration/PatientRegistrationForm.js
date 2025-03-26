@@ -24,6 +24,7 @@ const PatientRegistrationForm = () => {
   const [errors, setErrors] = useState({});
   const [email, setEmail] = useState(""); // Email input for fetching existing data
   const [existingPatientId, setExistingPatientId] = useState(null); // Track if patient exists for updates
+  const [language, setLanguage] = useState("en");
 
   const handleFetchData = async () => {
     try {
@@ -75,6 +76,7 @@ const PatientRegistrationForm = () => {
       return;
     }
     setErrors({});
+    localStorage.setItem("prefferedLanguage", language);
     try {
       if (existingPatientId) {
         // If patient exists, update record
@@ -138,6 +140,22 @@ const PatientRegistrationForm = () => {
         <h1 className="text-3xl font-bold text-center mb-6">
           Patient Registration
         </h1>
+
+        {/* Language Selector */}
+        <div className="mb-6">
+          <label className="block text-sm font-medium mb-1">Preferred Language</label>
+          <select
+            value={language}
+            onChange={(e) => setLanguage(e.target.value)}
+            className="w-full px-4 py-2 bg-purple-100 text-black border rounded"
+          >
+            <option value="en">English</option>
+            <option value="fr">Français</option>
+            <option value="hi">हिंदी</option>
+            <option value="es">Español</option>
+            <option value="zh-cn">中文</option>
+          </select>
+        </div>
 
         {/* Returning Patient Lookup */}
         <div className="mb-4">
