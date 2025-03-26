@@ -1,13 +1,11 @@
 import React, { useState } from "react";
-import {
-  BrowserRouter as Router,
-  Route,
-  Routes,
-  useNavigate,
-} from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config";
+import { saveOfflineData } from "../utils/localStore";
+import useNetworkStatus from "../utils/useNetworkStatus";
 
 const PatientRegistrationForm = () => {
+  const isOffline = useNetworkStatus();
   const [formData, setFormData] = useState({
     firstName: "",
     lastName: "",
@@ -17,39 +15,18 @@ const PatientRegistrationForm = () => {
     email: "",
     address: "",
   });
+  const [errors, setErrors] = useState({});
+  const [email, setEmail] = useState(""); // for retrieving existing patient data
+  const [existingPatientId, setExistingPatientId] = useState(null);
+  const [language, setLanguage] = useState("en");
+
   const navigate = useNavigate();
+
   const navigateHome = () => {
     navigate("/");
   };
-  const [errors, setErrors] = useState({});
-  const [email, setEmail] = useState(""); // Email input for fetching existing data
-  const [existingPatientId, setExistingPatientId] = useState(null); // Track if patient exists for updates
-  const [language, setLanguage] = useState("en");
 
-  const handleFetchData = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/returning-patient/${email}`);
-      if (response.ok) {
-        const data = await response.json();
-        setFormData({
-          firstName: data.first_name,
-          lastName: data.last_name,
-          gender: data.gender,
-          age: data.age,
-          phoneNumber: data.phone_number,
-          email: data.email,
-          address: data.address,
-        });
-        setExistingPatientId(data.id); // Store existing patient ID for updating
-      } else {
-        alert("Patient not found. You can register a new patient.");
-        setExistingPatientId(null); // No existing patient found
-      }
-    } catch (error) {
-      console.error("Error fetching data:", error);
-    }
-  };
-
+  // Basic validation
   const validate = () => {
     const newErrors = {};
     if (!formData.firstName) newErrors.firstName = "First name is required";
@@ -77,42 +54,60 @@ const PatientRegistrationForm = () => {
     }
     setErrors({});
     localStorage.setItem("prefferedLanguage", language);
+
+    const payload = { ...formData };
+
+    if (isOffline) {
+      // Generate a temporary patient ID (using Date.now for uniqueness)
+      const tempPatientId = "temp-" + Date.now();
+      // Save the payload along with the temporary ID offline
+      await saveOfflineData({
+        url: `${API_BASE_URL}/api/register-patient`,
+        method: "POST",
+        body: { ...payload, tempPatientId },
+        timestamp: Date.now(),
+      });
+      alert("You're offline. Your registration data is saved locally.");
+      // Navigate to the health questionnaire using the temporary ID.
+      navigate(`/health-questionnaire/${tempPatientId}`);
+      return;
+    }
+
+    // Online flow:
     try {
       if (existingPatientId) {
-        // If patient exists, update record
+        // Update existing patient if applicable
         const response = await fetch(
           `${API_BASE_URL}/api/update-patient/${existingPatientId}`,
           {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
-              "Authorization": `Bearer ${localStorage.getItem("token")}`
+              Authorization: `Bearer ${localStorage.getItem("token")}`,
             },
-            body: JSON.stringify(formData),
+            body: JSON.stringify(payload),
           }
         );
-
         if (response.ok) {
           alert("Patient details updated successfully!");
         } else {
           const errorData = await response.json();
           alert(
-            `Failed to update patient: ${errorData.error || "Unknown error"}`
+            "Failed to update patient: " + (errorData.error || "Unknown error")
           );
         }
       } else {
-        // Otherwise, register a new patient
+        // Register new patient online
         const response = await fetch(`${API_BASE_URL}/api/register-patient`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(formData),
+          body: JSON.stringify(payload),
         });
 
         const data = await response.json();
-        console.log("🔹 API Response:", data); // Debugging to see if data.patient exists
-
         if (response.ok && data.patient && data.patient.id) {
           alert("Patient registered successfully!");
+          // Clear the form if needed
           setFormData({
             firstName: "",
             lastName: "",
@@ -122,7 +117,7 @@ const PatientRegistrationForm = () => {
             email: "",
             address: "",
           });
-          navigate(`${API_BASE_URL}/health-questionnaire/${data.patient.id}`);
+          navigate(`/health-questionnaire/${data.patient.id}`);
         } else {
           alert("Unexpected response from server. Please try again.");
           console.error("Unexpected response:", data);
@@ -131,6 +126,32 @@ const PatientRegistrationForm = () => {
     } catch (error) {
       console.error("Error submitting form:", error);
       alert("An error occurred while submitting the form.");
+    }
+  };
+
+  const handleFetchData = async () => {
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/returning-patient/${email}`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setFormData({
+          firstName: data.first_name,
+          lastName: data.last_name,
+          gender: data.gender,
+          age: data.age,
+          phoneNumber: data.phone_number,
+          email: data.email,
+          address: data.address,
+        });
+        setExistingPatientId(data.id);
+      } else {
+        alert("Patient not found. You can register a new patient.");
+        setExistingPatientId(null);
+      }
+    } catch (error) {
+      console.error("Error fetching data:", error);
     }
   };
 
@@ -143,7 +164,9 @@ const PatientRegistrationForm = () => {
 
         {/* Language Selector */}
         <div className="mb-6">
-          <label className="block text-sm font-medium mb-1">Preferred Language</label>
+          <label className="block text-sm font-medium mb-1">
+            Preferred Language
+          </label>
           <select
             value={language}
             onChange={(e) => setLanguage(e.target.value)}
@@ -168,12 +191,12 @@ const PatientRegistrationForm = () => {
               placeholder="Enter email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+              className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md"
             />
             <button
               type="button"
               onClick={handleFetchData}
-              className="ml-2 px-4 py-2 bg-orange-500 text-white rounded-md hover:bg-orange-600"
+              className="ml-2 px-4 py-2 bg-orange-500 text-white rounded-md"
             >
               Retrieve
             </button>
@@ -199,7 +222,7 @@ const PatientRegistrationForm = () => {
                   name={field}
                   value={formData[field]}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md"
                   required
                 >
                   <option value="">Select</option>
@@ -212,7 +235,7 @@ const PatientRegistrationForm = () => {
                   name={field}
                   value={formData[field]}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md"
                   rows="3"
                 ></textarea>
               ) : (
@@ -221,7 +244,7 @@ const PatientRegistrationForm = () => {
                   name={field}
                   value={formData[field]}
                   onChange={handleChange}
-                  className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  className="mt-1 block w-full px-4 py-2 bg-purple-100 text-black border border-gray-300 rounded-md"
                 />
               )}
               {errors[field] && (
@@ -231,10 +254,11 @@ const PatientRegistrationForm = () => {
           ))}
           <button
             type="submit"
-            className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md focus:ring-2 focus:ring-orange-400 ${existingPatientId
-              ? "bg-blue-500 hover:bg-blue-600"
-              : "bg-orange-500 hover:bg-orange-600"
-              }`}
+            className={`w-full py-3 px-6 rounded-md text-white font-semibold shadow-md ${
+              existingPatientId
+                ? "bg-blue-500 hover:bg-blue-600"
+                : "bg-orange-500 hover:bg-orange-600"
+            }`}
           >
             {existingPatientId ? "Update" : "Submit"}
           </button>

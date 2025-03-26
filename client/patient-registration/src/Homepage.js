@@ -1,9 +1,13 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
+import { getOfflineData, clearOfflineData } from "./utils/localStore";
 import { jwtDecode } from "jwt-decode";
+import useNetworkStatus from "./utils/useNetworkStatus";
 
 const Homepage = () => {
   const navigate = useNavigate();
+
+  const isOffline = useNetworkStatus();
 
   // Decode the token to get the user role
   const token = localStorage.getItem("token");
@@ -11,19 +15,19 @@ const Homepage = () => {
   if (token) {
     try {
       const decoded = jwtDecode(token);
-      role = decoded.role; // Assumes your token payload contains a "role" field (e.g., "Admin" or "Doctor")
+      role = decoded.role; // e.g., "Admin", "Doctor", or "volunteer"
     } catch (error) {
       console.error("Error decoding token in Homepage:", error);
     }
   }
 
-  // Log out: remove the token and navigate to login
+  // Log out: remove token and navigate to login
   const handleLogout = () => {
     localStorage.removeItem("token");
     navigate("/login");
   };
 
-  // Navigate to the appropriate dashboard based on role
+  // Navigate to the appropriate dashboard for Admin/Doctor
   const handleDashboard = () => {
     if (role === "Admin") {
       navigate("/admin-dashboard");
@@ -32,9 +36,46 @@ const Homepage = () => {
     }
   };
 
+  // Manual sync: retrieve offline data and send to the backend
+  const handleSync = async () => {
+    if (isOffline) {
+      alert(
+        "You're offline. Please connect to the internet to sync your data."
+      );
+      return;
+    }
+    try {
+      const offlineQueue = await getOfflineData();
+      if (!offlineQueue || offlineQueue.length === 0) {
+        alert("No offline data to sync.");
+        return;
+      }
+
+      for (const req of offlineQueue) {
+        try {
+          const response = await fetch(req.url, {
+            method: req.method,
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(req.body),
+          });
+          if (!response.ok) {
+            console.error("Sync failed for request: ", req);
+          }
+        } catch (err) {
+          console.error("Error syncing request: ", req, err);
+        }
+      }
+      await clearOfflineData();
+      alert("Offline data synced successfully!");
+    } catch (err) {
+      console.error("Error during manual sync: ", err);
+      alert("An error occurred during syncing.");
+    }
+  };
+
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900 text-white">
-      {/* Log Out button in the top left */}
+      {/* Log Out Button */}
       <div className="absolute top-4 left-4">
         <button
           onClick={handleLogout}
@@ -44,7 +85,7 @@ const Homepage = () => {
         </button>
       </div>
 
-      {/* Conditional Dashboard button in the top right for Admin or Doctor */}
+      {/* Conditional Dashboard Button */}
       {(role === "Admin" || role === "Doctor") && (
         <div className="absolute top-4 right-4">
           <button
@@ -64,22 +105,22 @@ const Homepage = () => {
           A secure and efficient way to manage patient information.
         </p>
 
-        <div className="flex gap-4">
+        <div className="flex gap-4 justify-center">
           <button
             onClick={() => navigate("/register")}
             className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white rounded-lg text-lg shadow-md"
           >
             Register Patient
           </button>
-
-          <button
-            onClick={() => navigate("/groupregister")}
-            className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg text-lg shadow-md"
-          >
-            Register Family Group
-          </button>
-
-          {/* Only show "Edit Family Groups" if logged in as Admin or Doctor */}
+          {/* Hide the group registration button when offline */}
+          {!isOffline && (
+            <button
+              onClick={() => navigate("/groupregister")}
+              className="px-6 py-3 bg-green-500 hover:bg-green-600 text-white rounded-lg text-lg shadow-md"
+            >
+              Register Family Group
+            </button>
+          )}
           {(role === "Admin" || role === "Doctor") && (
             <button
               onClick={() => navigate("/edit-family-group")}
@@ -90,6 +131,20 @@ const Homepage = () => {
           )}
         </div>
       </div>
+
+      {/* Manual Sync Button in bottom-right */}
+      <button
+        onClick={handleSync}
+        style={{
+          position: "fixed",
+          bottom: 20,
+          right: 20,
+          zIndex: 1000,
+        }}
+        className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white rounded shadow-md"
+      >
+        Sync Data
+      </button>
     </div>
   );
 };

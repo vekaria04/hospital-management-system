@@ -7,6 +7,7 @@ import {
   Link,
 } from "react-router-dom";
 import { jwtDecode } from "jwt-decode";
+import useOnlineSync from "./utils/useOnlineSync";
 
 // Import your components
 import PatientRegistrationForm from "./PatientRegistration/PatientRegistrationForm";
@@ -38,17 +39,23 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
   if (!token) return <Navigate to="/login" replace />;
 
   let role = null;
-  try {
-    const decoded = jwtDecode(token);
-    // Check token expiration (decoded.exp is in seconds)
-    if (decoded.exp * 1000 < Date.now()) {
-      console.log("Token expired");
+
+  // If the token is our offline dummy token, set role to "volunteer"
+  if (token === "offline-dummy-token") {
+    role = "volunteer";
+  } else {
+    try {
+      const decoded = jwtDecode(token);
+      // Check token expiration (decoded.exp is in seconds)
+      if (decoded.exp * 1000 < Date.now()) {
+        console.log("Token expired");
+        return <Navigate to="/login" replace />;
+      }
+      role = decoded.role; // Extract role from token
+    } catch (error) {
+      console.error("Error decoding token:", error);
       return <Navigate to="/login" replace />;
     }
-    role = decoded.role; // Extract role from token
-  } catch (error) {
-    console.error("Error decoding token:", error);
-    return <Navigate to="/login" replace />;
   }
 
   // If allowedRoles is provided and the user's role isn't in the list, redirect to homepage
@@ -56,11 +63,13 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     return <Navigate to="/" replace />;
   }
 
-  // If everything checks out, render the protected component
+  // Render the protected component if all checks pass
   return children;
 };
 
 const App = () => {
+  useOnlineSync();
+
   return (
     <Router>
       <Header /> {/* Clickable header navigates to "/" */}

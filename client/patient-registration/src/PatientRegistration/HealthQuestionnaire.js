@@ -1,8 +1,11 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import API_BASE_URL from "../config";
+import { saveOfflineData } from "../utils/localStore";
+import useNetworkStatus from "../utils/useNetworkStatus";
 
 const HealthQuestionnaire = () => {
+  const isOffline = useNetworkStatus();
   const navigate = useNavigate();
   const { patientId } = useParams();
 
@@ -41,12 +44,34 @@ const HealthQuestionnaire = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/submit-health-questionnaire`, {
+
+    const payload = { ...answers, patientId };
+
+    if (isOffline) {
+      // Save payload offline for later sync
+      await saveOfflineData({
+        url: `${API_BASE_URL}/api/submit-health-questionnaire`,
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...answers, patientId }),
+        body: payload,
+        timestamp: Date.now(),
       });
+      alert(
+        "You're offline. Your questionnaire has been saved locally and will sync when you're online."
+      );
+      navigate("/");
+      return;
+    }
+
+    // Existing online submission flow
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/submit-health-questionnaire`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        }
+      );
 
       if (response.ok) {
         alert("✅ Questionnaire submitted!");
@@ -54,7 +79,7 @@ const HealthQuestionnaire = () => {
       } else {
         const data = await response.json();
         console.error(data);
-        alert("❌ Submission failed");
+        alert("❌ Submission failed: " + (data.error || "Unknown error"));
       }
     } catch (err) {
       console.error("Error submitting questionnaire:", err);
@@ -72,7 +97,9 @@ const HealthQuestionnaire = () => {
     <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-purple-900 to-indigo-900">
       <div className="max-w-3xl w-full bg-gradient-to-br from-purple-700 to-indigo-700 p-10 rounded-lg shadow-lg text-white">
         <div className="flex justify-between items-center mb-6">
-          <h2 className="text-3xl font-bold text-center w-full">Health Questionnaire</h2>
+          <h2 className="text-3xl font-bold text-center w-full">
+            Health Questionnaire
+          </h2>
           <select
             value={language}
             onChange={(e) => {
@@ -90,7 +117,9 @@ const HealthQuestionnaire = () => {
         </div>
 
         {loading ? (
-          <div className="text-white text-center mt-10">Loading questions...</div>
+          <div className="text-white text-center mt-10">
+            Loading questions...
+          </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-6">
             {Object.entries(groupedByCategory).map(([category, group]) => (
@@ -101,17 +130,23 @@ const HealthQuestionnaire = () => {
 
                   return (
                     <div key={q.id} className="mb-4">
-                      <label className="block text-sm font-medium mb-1">{q.question}</label>
+                      <label className="block text-sm font-medium mb-1">
+                        {q.question}
+                      </label>
                       <select
                         name={q.field_name}
                         value={answers[q.field_name] || ""}
-                        onChange={(e) => handleChange(q.field_name, e.target.value)}
+                        onChange={(e) =>
+                          handleChange(q.field_name, e.target.value)
+                        }
                         className="w-full p-2 bg-purple-100 text-black border rounded"
                         required
                       >
                         <option value="">Select</option>
                         {q.options.map((opt, i) => (
-                          <option key={i} value={opt}>{opt}</option>
+                          <option key={i} value={opt}>
+                            {opt}
+                          </option>
                         ))}
                       </select>
                     </div>

@@ -1,7 +1,12 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import API_BASE_URL from "../config";
+import useNetworkStatus from "../utils/useNetworkStatus";
+
 const Login = () => {
+  // Use the centralized hook for network status
+  const isOffline = useNetworkStatus();
+
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const navigate = useNavigate();
@@ -17,14 +22,12 @@ const Login = () => {
 
       const data = await response.json();
       if (response.ok) {
-        localStorage.setItem("token", data.token); // ✅ Store token
-        localStorage.setItem("role", data.role); // ✅ Store role
-
+        localStorage.setItem("token", data.token);
+        localStorage.setItem("role", data.role);
         console.log("🔑 Token:", data.token);
         console.log("👤 User Role:", data.role);
-
         alert("Login successful!");
-        navigate("/"); // Redirect to home
+        navigate("/");
       } else {
         alert("Login failed: " + data.error);
       }
@@ -48,10 +51,8 @@ const Login = () => {
       if (response.ok) {
         localStorage.setItem("token", data.token);
         localStorage.setItem("role", data.role);
-
         console.log("🔑 Token:", data.token);
         console.log("👤 User Role:", data.role);
-
         alert("Login successful as Volunteer!");
         navigate("/");
       } else {
@@ -60,6 +61,14 @@ const Login = () => {
     } catch (error) {
       console.error("Volunteer login error:", error);
     }
+  };
+
+  // Offline login function: sets a dummy token and role.
+  const handleOfflineLogin = () => {
+    localStorage.setItem("token", "offline-dummy-token");
+    localStorage.setItem("role", "volunteer");
+    alert("Offline login successful! Limited functionality available.");
+    navigate("/");
   };
 
   return (
@@ -97,6 +106,18 @@ const Login = () => {
             Login as Volunteer
           </button>
         </div>
+        {/* Show the offline login button when isOffline is true */}
+        {isOffline && (
+          <div className="mt-4 text-center">
+            <button
+              type="button"
+              onClick={handleOfflineLogin}
+              className="text-sm text-blue-300 underline"
+            >
+              Login as Offline User
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );

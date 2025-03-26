@@ -1,5 +1,6 @@
 {
   "dependencies": {
+    "@vitalets/google-translate-api": "^9.2.1",
     "bcrypt": "^5.1.1",
     "bcryptjs": "^3.0.2",
     "body-parser": "^1.20.3",
@@ -7,9 +8,9 @@
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "mongoose": "^8.9.5",
-    "pg": "^8.13.1",
     "passport": "^0.7.0",
     "passport-local": "^1.0.0",
+    "pg": "^8.13.1",
     "validator": "^13.12.0"
   }
 }
