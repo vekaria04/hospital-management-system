@@ -1437,6 +1437,127 @@ Please summarize:
   }
 });
 
+app.get("/api/metrics/summary", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    // Total counts
+    const patientsResult = await pool.query("SELECT COUNT(*) AS total_patients FROM patients;");
+    const doctorsResult = await pool.query("SELECT COUNT(*) AS total_doctors FROM doctors;");
+    const familyResult = await pool.query("SELECT COUNT(*) AS total_family_groups FROM family_groups;");
+
+    // Gender Distribution
+    const genderResult = await pool.query(`
+      SELECT gender, COUNT(*) AS count
+      FROM patients
+      GROUP BY gender;
+    `);
+
+    // Age Stats
+    const ageAvgResult = await pool.query(`SELECT AVG(age)::INT AS average_age FROM patients;`);
+    const ageGroupResult = await pool.query(`
+      SELECT 
+        CASE 
+          WHEN age BETWEEN 0 AND 18 THEN '0-18'
+          WHEN age BETWEEN 19 AND 35 THEN '19-35'
+          WHEN age BETWEEN 36 AND 50 THEN '36-50'
+          WHEN age BETWEEN 51 AND 65 THEN '51-65'
+          ELSE '66+'
+        END AS age_group,
+        COUNT(*) AS count
+      FROM patients
+      GROUP BY age_group;
+    `);
+
+    // Patients per doctor
+    const patientsPerDoctor = await pool.query(`
+      SELECT 
+        d.id, d.first_name || ' ' || d.last_name AS doctor_name, COUNT(p.id) AS patient_count
+      FROM doctors d
+      LEFT JOIN patients p ON d.id = p.assigned_doctor_id
+      GROUP BY d.id
+      ORDER BY patient_count DESC;
+    `);
+
+    // Unassigned patients
+    const unassignedPatients = await pool.query(`
+      SELECT COUNT(*) AS unassigned_patient_count
+      FROM patients
+      WHERE assigned_doctor_id IS NULL;
+    `);
+
+    // Questionnaire/Response Metrics
+    const responseSummary = await pool.query(`
+      SELECT COUNT(DISTINCT patient_id) AS total_responses
+      FROM patient_responses;
+    `);
+    const topQuestions = await pool.query(`
+      SELECT field_name, COUNT(*) AS answer_count
+      FROM patient_responses
+      GROUP BY field_name
+      ORDER BY answer_count DESC
+      LIMIT 10;
+    `);
+
+    // Audit log - changes over time
+    const auditOverTime = await pool.query(`
+      SELECT DATE(created_at) AS date, COUNT(*) AS changes
+      FROM audit_logs
+      GROUP BY date
+      ORDER BY date DESC;
+    `);
+
+    // Audit log - most active users
+    const topUsers = await pool.query(`
+      SELECT COALESCE(u.first_name || ' ' || u.last_name, 'Unknown') AS user_name, COUNT(a.id) AS actions
+      FROM audit_logs a
+      LEFT JOIN users u ON a.user_id = u.id
+      GROUP BY u.id
+      ORDER BY actions DESC
+      LIMIT 5;
+    `);
+
+    // Family group metrics
+    const familySizeAvg = await pool.query(`
+      SELECT ROUND(AVG(member_count), 2) AS avg_family_size
+      FROM (
+        SELECT family_group_id, COUNT(*) AS member_count
+        FROM patients
+        WHERE family_group_id IS NOT NULL
+        GROUP BY family_group_id
+      ) AS sub;
+    `);
+
+    res.json({
+      totals: {
+        total_patients: patientsResult.rows[0].total_patients,
+        total_doctors: doctorsResult.rows[0].total_doctors,
+        total_family_groups: familyResult.rows[0].total_family_groups,
+      },
+      demographics: {
+        gender_distribution: genderResult.rows,
+        average_age: ageAvgResult.rows[0].average_age,
+        age_groups: ageGroupResult.rows
+      },
+      doctors: {
+        patients_per_doctor: patientsPerDoctor.rows,
+        unassigned_patients: unassignedPatients.rows[0].unassigned_patient_count
+      },
+      questionnaires: {
+        total_responses: responseSummary.rows[0].total_responses,
+        top_answered_questions: topQuestions.rows
+      },
+      audit_logs: {
+        changes_over_time: auditOverTime.rows,
+        top_users: topUsers.rows
+      },
+      families: {
+        average_family_size: familySizeAvg.rows[0].avg_family_size
+      }
+    });
+  } catch (error) {
+    console.error("❌ Error fetching full summary metrics:", error);
+    res.status(500).json({ error: "Failed to fetch summary metrics" });
+  }
+});
 
 const PORT = 3000;
 app.listen(PORT, () => {
