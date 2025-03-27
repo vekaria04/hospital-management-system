@@ -1436,6 +1436,20 @@ Please summarize:
     res.status(500).json({ error: "Failed to generate report for patient" });
   }
 });
+app.get("/api/reported-patients", authenticate, authorizeRoles("Admin"), async (req, res) => {
+  try {
+    const result = await pool.query(`
+      SELECT DISTINCT p.id, p.email
+      FROM patient_responses r
+      JOIN patients p ON r.patient_id = p.id;
+    `);
+    res.json(result.rows);
+  } catch (err) {
+    console.error("Error fetching reported patients:", err);
+    res.status(500).json({ error: "Failed to fetch reported patients." });
+  }
+});
+
 
 app.get("/api/metrics/summary", authenticate, authorizeRoles("Admin"), async (req, res) => {
   try {

@@ -260,9 +260,14 @@ const AdminDashboard = () => {
   return (
     <div className="text-white p-4 space-y-8 bg-gradient-to-br from-purple-900 to-indigo-900 min-h-screen">
       <h1 className="text-4xl font-bold">Admin Dashboard</h1>
-
+      <button
+        onClick={() => navigate("/reports")}
+        className="bg-blue-600 px-4 py-2 rounded mb-4"
+      >
+        View Patient Reports
+      </button>
       {/* Analytics Section */}
-      <div className="bg-gray-800 p-4 rounded shadow">
+      <div className="bg-purple-700 p-4 rounded shadow">
         <h2 className="text-2xl font-semibold mb-2">Analytics Metrics</h2>
         {summaryMetrics ? (
           <div className="space-y-6">

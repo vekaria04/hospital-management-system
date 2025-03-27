@@ -19,6 +19,8 @@ import VerifyEmail from "./Auth/VerifyEmail";
 import Login from "./Auth/Login";
 import AdminDashboard from "./Dashboards/adminDash";
 import DoctorDashboard from "./Dashboards/doctorDash";
+import ReportDisplay from "./Dashboards/reportDisplay";
+
 
 // Updated Header Component with clickable banner
 const Header = () => {
@@ -136,6 +138,16 @@ const App = () => {
           }
         />
         <Route
+          path="/reports"
+          element={
+            <ProtectedRoute allowedRoles={["Admin"]}>
+              <ReportDisplay />
+            </ProtectedRoute>
+          }
+        />
+
+        <Route
+
           path="/doctor-dashboard"
           element={
             <ProtectedRoute allowedRoles={["Doctor"]}>
