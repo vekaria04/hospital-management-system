@@ -31,3 +31,5 @@ EXPOSE 8080
 
 # Command to start the application
 CMD ["node", "server.js"]
+
+COPY .env .env

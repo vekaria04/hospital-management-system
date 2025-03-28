@@ -23,6 +23,7 @@ const pool = new Pool({
   port: process.env.DB_PORT,
   ssl: {
     rejectUnauthorized: false,
+    require: true,
   },
 });
 
@@ -1573,7 +1574,7 @@ app.get("/api/metrics/summary", authenticate, authorizeRoles("Admin"), async (re
   }
 });
 
-const PORT = 3000;
+const PORT = process.env.PORT || 8080;
 app.listen(PORT, () => {
   console.log(`✅ Server is running on port ${PORT}`);
 });
