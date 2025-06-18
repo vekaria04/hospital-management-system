@@ -49,8 +49,7 @@ Built with scalability and accessibility in mind, this system helps clinics in l
 
 **AI & ML Tools** 
 - Questionnaire-to-Report generation using trained models
-
-## ⚙️ Setup Instructions
+- Used Groq API for AI
 
 ### Prerequisites
 - Node.js and npm  
